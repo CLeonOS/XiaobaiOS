@@ -1,0 +1,11 @@
+build/
+build-cmake*/
+*.iso
+*.tar
+__pycache__/
+*.pyc
+*.pyo
+configs/menuconfig/.config.json
+configs/menuconfig/config.cmake
+limine/.git
+limine/.cleonos-*
