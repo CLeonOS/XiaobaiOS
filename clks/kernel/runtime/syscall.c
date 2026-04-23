@@ -17,6 +17,7 @@
 #include <clks/tty.h>
 #include <clks/types.h>
 #include <clks/userland.h>
+#include <clks/version.h>
 
 #define CLKS_SYSCALL_LOG_MAX_LEN 191U
 #define CLKS_SYSCALL_PATH_MAX 192U
@@ -375,6 +376,11 @@ static u64 clks_syscall_fb_clear(u64 arg0) {
 
     clks_fb_clear((u32)(arg0 & 0xFFFFFFFFULL));
     return 1ULL;
+}
+
+static u64 clks_syscall_kernel_version(u64 arg0, u64 arg1) {
+    usize len = clks_strlen(CLKS_VERSION_STRING);
+    return clks_syscall_copy_text_to_user(arg0, arg1, CLKS_VERSION_STRING, len);
 }
 
 static u64 clks_syscall_fb_blit(u64 arg0) {
@@ -2624,6 +2630,8 @@ u64 clks_syscall_dispatch(void *frame_ptr) {
         return clks_syscall_fb_blit(frame->rbx);
     case CLKS_SYSCALL_FB_CLEAR:
         return clks_syscall_fb_clear(frame->rbx);
+    case CLKS_SYSCALL_KERNEL_VERSION:
+        return clks_syscall_kernel_version(frame->rbx, frame->rcx);
     case CLKS_SYSCALL_DISK_PRESENT:
         return clks_syscall_disk_present();
     case CLKS_SYSCALL_DISK_SIZE_BYTES:

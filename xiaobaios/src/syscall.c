@@ -368,6 +368,10 @@ u64 cleonos_sys_fb_clear(u64 rgb) {
     return cleonos_syscall(CLEONOS_SYSCALL_FB_CLEAR, rgb, 0ULL, 0ULL);
 }
 
+u64 cleonos_sys_kernel_version(char *out_version, u64 out_size) {
+    return cleonos_syscall(CLEONOS_SYSCALL_KERNEL_VERSION, (u64)out_version, out_size, 0ULL);
+}
+
 u64 cleonos_sys_disk_present(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_DISK_PRESENT, 0ULL, 0ULL, 0ULL);
 }

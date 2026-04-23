@@ -50,6 +50,7 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
     char tty_buf[64];
     char service_buf[64];
     char uptime_buf[64];
+    char kernel_buf[96];
     char disk_buf[160];
     char mount_path[USH_PATH_MAX];
     u64 disk_present;
@@ -70,7 +71,12 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
     ff_print_header(&sh);
     ff_print_line("OS", "XiaoBaiOS");
     ff_print_line("Host", "xiaobaios");
-    ff_print_line("Kernel", "CLKS");
+    ush_zero(kernel_buf, (u64)sizeof(kernel_buf));
+    if (cleonos_sys_kernel_version(kernel_buf, (u64)sizeof(kernel_buf)) != 0ULL && kernel_buf[0] != '\0') {
+        ff_print_line("Kernel", kernel_buf);
+    } else {
+        ff_print_line("Kernel", "CLKS");
+    }
 #if defined(__x86_64__)
     ff_print_line("Arch", "x86_64");
 #elif defined(__aarch64__)

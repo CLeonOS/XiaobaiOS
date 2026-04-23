@@ -81,6 +81,15 @@ function(resolve_path INPUT_PATH OUTPUT_VAR)
     endif()
 endfunction()
 
+resolve_path("${LIMINE_DIR}" LIMINE_DIR_ABS)
+resolve_path("${LIMINE_BIN_DIR}" LIMINE_BIN_DIR_ABS)
+
+if(EXISTS "${LIMINE_DIR_ABS}/limine-bios.sys")
+    set(LIMINE_BIN_DIR_ABS "${LIMINE_DIR_ABS}")
+elseif(EXISTS "${LIMINE_DIR_ABS}/bin/limine-bios.sys")
+    set(LIMINE_BIN_DIR_ABS "${LIMINE_DIR_ABS}/bin")
+endif()
+
 set(BUILD_ROOT "${CMAKE_SOURCE_DIR}/build/x86_64")
 set(OBJ_ROOT "${BUILD_ROOT}/obj")
 set(ISO_ROOT "${BUILD_ROOT}/iso_root")
@@ -91,6 +100,7 @@ set(XIAOBAIOS_TTY_PSF_IMAGE "${BUILD_ROOT}/generated/tty.psf")
 set(ISO_IMAGE "${CMAKE_SOURCE_DIR}/build/XiaoBaiOS-x86_64.iso")
 set(KERNEL_RUST_LIB "${BUILD_ROOT}/libclks_kernel_rust.a")
 set(KERNEL_SYMBOLS_FILE "${BUILD_ROOT}/kernel.sym")
+set(LIMINE_READY_STAMP "${BUILD_ROOT}/.limine.ready")
 
 set(CLKS_ARCH "x86_64" CACHE STRING "Target CLKS arch")
 set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/clks/arch/${CLKS_ARCH}/linker.ld")
@@ -773,6 +783,18 @@ add_custom_command(
         -P "${CL_LOG_EMIT_SCRIPT}"
 )
 
+add_custom_command(
+    OUTPUT "${LIMINE_READY_STAMP}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BUILD_ROOT}"
+    COMMAND ${SH_TOOL} -c "if [ -f \"${LIMINE_DIR_ABS}/limine-bios.sys\" ] && [ -f \"${LIMINE_DIR_ABS}/limine\" ] && [ -f \"${LIMINE_DIR_ABS}/limine-bios-cd.bin\" ] && [ -f \"${LIMINE_DIR_ABS}/limine-uefi-cd.bin\" ] && [ -f \"${LIMINE_DIR_ABS}/BOOTX64.EFI\" ]; then exit 0; fi; if [ -f \"${LIMINE_BIN_DIR_ABS}/limine-bios.sys\" ] && [ -f \"${LIMINE_BIN_DIR_ABS}/limine\" ] && [ -f \"${LIMINE_BIN_DIR_ABS}/limine-bios-cd.bin\" ] && [ -f \"${LIMINE_BIN_DIR_ABS}/limine-uefi-cd.bin\" ] && [ -f \"${LIMINE_BIN_DIR_ABS}/BOOTX64.EFI\" ]; then exit 0; fi; if [ ! -f \"${LIMINE_DIR_ABS}/Makefile\" ]; then \"${SH_TOOL}\" \"${LIMINE_DIR_ABS}/bootstrap\" && \"${SH_TOOL}\" -c 'cd \"${LIMINE_DIR_ABS}\" && ./configure --enable-bios --enable-bios-cd --enable-uefi-x86-64 --enable-uefi-cd'; fi; \"${MAKE_TOOL}\" -C \"${LIMINE_DIR_ABS}\" -j4"
+    COMMAND ${SH_TOOL} -c "if [ -f \"${LIMINE_DIR_ABS}/limine-bios.sys\" ] && [ -f \"${LIMINE_DIR_ABS}/limine\" ] && [ -f \"${LIMINE_DIR_ABS}/limine-bios-cd.bin\" ] && [ -f \"${LIMINE_DIR_ABS}/limine-uefi-cd.bin\" ] && [ -f \"${LIMINE_DIR_ABS}/BOOTX64.EFI\" ]; then exit 0; fi; if [ -f \"${LIMINE_BIN_DIR_ABS}/limine-bios.sys\" ] && [ -f \"${LIMINE_BIN_DIR_ABS}/limine\" ] && [ -f \"${LIMINE_BIN_DIR_ABS}/limine-bios-cd.bin\" ] && [ -f \"${LIMINE_BIN_DIR_ABS}/limine-uefi-cd.bin\" ] && [ -f \"${LIMINE_BIN_DIR_ABS}/BOOTX64.EFI\" ]; then exit 0; fi; echo 'limine build missing expected artifacts' >&2; exit 1"
+    COMMAND ${CMAKE_COMMAND} -E touch "${LIMINE_READY_STAMP}"
+    DEPENDS "${LIMINE_DIR_ABS}/.git"
+    VERBATIM
+)
+
+add_custom_target(limine-ready DEPENDS "${LIMINE_READY_STAMP}")
+
 add_custom_target(menuconfig
     COMMAND ${PYTHON} "${CMAKE_SOURCE_DIR}/scripts/menuconfig.py" --non-interactive
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -825,7 +847,7 @@ add_custom_command(
 )
 
 add_custom_target(iso ALL DEPENDS "${ISO_IMAGE}")
-add_dependencies(iso setup-tools kernel ramdisk)
+add_dependencies(iso setup-tools kernel ramdisk limine-ready)
 
 add_custom_target(run
     COMMAND ${CMAKE_COMMAND}
