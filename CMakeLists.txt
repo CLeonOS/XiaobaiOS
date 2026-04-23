@@ -731,7 +731,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory "${BUILD_ROOT}/ramdisk_root"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ramdisk" "${BUILD_ROOT}/ramdisk_root"
     ${XIAOBAIOS_RAMDISK_FONT_COMMANDS}
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${BUILD_ROOT}/ramdisk_root/system" "${BUILD_ROOT}/ramdisk_root/shell" "${BUILD_ROOT}/ramdisk_root/driver" "${BUILD_ROOT}/ramdisk_root/dev"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BUILD_ROOT}/ramdisk_root/system" "${BUILD_ROOT}/ramdisk_root/system/etc" "${BUILD_ROOT}/ramdisk_root/shell" "${BUILD_ROOT}/ramdisk_root/driver" "${BUILD_ROOT}/ramdisk_root/dev" "${BUILD_ROOT}/ramdisk_root/home" "${BUILD_ROOT}/ramdisk_root/temp"
     ${XIAOBAIOS_RAMDISK_ELF_COMMANDS}
     COMMAND ${CMAKE_COMMAND} -E touch "${RAMDISK_ROOT_STAMP}"
     DEPENDS ${XIAOBAIOS_RAMDISK_ROOT_DEPS} ${XIAOBAIOS_USER_APP_OUTPUTS} ${XIAOBAIOS_USER_PREBUILT_ELF_ABS}
