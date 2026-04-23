@@ -25,6 +25,31 @@
 #define CLKS_SHELL_CLEAR_LINES 56U
 #define CLKS_SHELL_HISTORY_MAX 16U
 #define CLKS_SHELL_HOSTNAME_TEXT "xiaobaios"
+#define CLKS_SHELL_CMD_CTX_PATH "/temp/.ush_cmd_ctx.bin"
+#define CLKS_SHELL_CMD_RET_PATH "/temp/.ush_cmd_ret.bin"
+#define CLKS_SHELL_XSH_CMD "xsh"
+#define CLKS_SHELL_XSH_ENV "PATH=/shell"
+#define CLKS_SHELL_CMD_RET_FLAG_CWD 0x1ULL
+#define CLKS_SHELL_CMD_RET_FLAG_EXIT 0x2ULL
+#define CLKS_SHELL_CMD_RET_FLAG_USER 0x4ULL
+
+struct clks_shell_cmd_ctx {
+    char cmd[CLKS_SHELL_CMD_MAX];
+    char arg[CLKS_SHELL_ARG_MAX];
+    char cwd[CLKS_SHELL_PATH_MAX];
+    char user_name[CLKS_SHELL_NAME_MAX];
+    u64 uid;
+    u64 gid;
+};
+
+struct clks_shell_cmd_ret {
+    u64 flags;
+    u64 exit_code;
+    char cwd[CLKS_SHELL_PATH_MAX];
+    char user_name[CLKS_SHELL_NAME_MAX];
+    u64 uid;
+    u64 gid;
+};
 
 #define CLKS_SHELL_ANSI_RESET "\x1B[0m"
 #define CLKS_SHELL_ANSI_GREEN_BOLD "\x1B[1;32m"
@@ -56,6 +81,7 @@ static u64 clks_shell_cmd_fail = 0ULL;
 static u64 clks_shell_cmd_unknown = 0ULL;
 static clks_bool clks_shell_pending_command = CLKS_FALSE;
 static char clks_shell_pending_line[CLKS_SHELL_LINE_MAX];
+static clks_bool clks_shell_root_handoff_attempted = CLKS_FALSE;
 
 extern void clks_rusttest_hello(void);
 
@@ -799,12 +825,69 @@ static clks_bool clks_shell_path_is_under_temp(const char *path) {
     return (path[5] == '\0' || path[5] == '/') ? CLKS_TRUE : CLKS_FALSE;
 }
 
+static clks_bool clks_shell_path_is_under_home(const char *path) {
+    if (path == CLKS_NULL) {
+        return CLKS_FALSE;
+    }
+
+    if (path[0] != '/' || path[1] != 'h' || path[2] != 'o' || path[3] != 'm' || path[4] != 'e') {
+        return CLKS_FALSE;
+    }
+
+    return (path[5] == '\0' || path[5] == '/') ? CLKS_TRUE : CLKS_FALSE;
+}
+
+static clks_bool clks_shell_path_is_under_current_home(const char *path) {
+    char prefix[CLKS_SHELL_PATH_MAX];
+    usize p = 0U;
+    usize i = 0U;
+
+    if (path == CLKS_NULL || clks_shell_user_name[0] == '\0') {
+        return CLKS_FALSE;
+    }
+
+    if (clks_shell_user_uid == 0ULL && clks_shell_streq(clks_shell_user_name, "root") == CLKS_TRUE) {
+        return clks_shell_path_is_under_home(path);
+    }
+
+    prefix[p++] = '/';
+    prefix[p++] = 'h';
+    prefix[p++] = 'o';
+    prefix[p++] = 'm';
+    prefix[p++] = 'e';
+    prefix[p++] = '/';
+
+    while (clks_shell_user_name[i] != '\0' && p + 1U < sizeof(prefix)) {
+        prefix[p++] = clks_shell_user_name[i++];
+    }
+
+    prefix[p] = '\0';
+
+    i = 0U;
+    while (prefix[i] != '\0') {
+        if (path[i] != prefix[i]) {
+            return CLKS_FALSE;
+        }
+        i++;
+    }
+
+    return (path[i] == '\0' || path[i] == '/') ? CLKS_TRUE : CLKS_FALSE;
+}
+
 static clks_bool clks_shell_can_modify_path(const char *path) {
     if (clks_shell_is_root() == CLKS_TRUE) {
         return CLKS_TRUE;
     }
 
-    return clks_shell_path_is_under_temp(path);
+    if (clks_shell_path_is_under_temp(path) == CLKS_TRUE) {
+        return CLKS_TRUE;
+    }
+
+    if (clks_shell_path_is_under_current_home(path) == CLKS_TRUE) {
+        return CLKS_TRUE;
+    }
+
+    return CLKS_FALSE;
 }
 
 static const char *clks_shell_exec_state_name(u64 state) {
@@ -849,17 +932,19 @@ static clks_bool clks_shell_cmd_help(void) {
     clks_shell_writeln("  whoami");
     clks_shell_writeln("  id");
     clks_shell_writeln("  su [user]");
+    clks_shell_writeln("  useradd <name>    (root)");
+    clks_shell_writeln("  passwd [user]");
     clks_shell_writeln("  ls [dir]");
     clks_shell_writeln("  cat <file>");
     clks_shell_writeln("  pwd");
     clks_shell_writeln("  cd [dir]");
-    clks_shell_writeln("  mkdir <dir>      (/temp only)");
-    clks_shell_writeln("  touch <file>     (/temp only)");
-    clks_shell_writeln("  write <file> <text>   (/temp only)");
-    clks_shell_writeln("  append <file> <text>  (/temp only)");
-    clks_shell_writeln("  cp <src> <dst>   (dst /temp only)");
-    clks_shell_writeln("  mv <src> <dst>   (/temp only)");
-    clks_shell_writeln("  rm <path>        (/temp only)");
+    clks_shell_writeln("  mkdir <dir>      (/temp /home /system/etc)");
+    clks_shell_writeln("  touch <file>     (/temp /home /system/etc)");
+    clks_shell_writeln("  write <file> <text>   (/temp /home /system/etc)");
+    clks_shell_writeln("  append <file> <text>  (/temp /home /system/etc)");
+    clks_shell_writeln("  cp <src> <dst>   (dst writable trees)");
+    clks_shell_writeln("  mv <src> <dst>   (writable trees)");
+    clks_shell_writeln("  rm <path>        (writable trees)");
     clks_shell_writeln("  memstat / fsstat / taskstat");
     clks_shell_writeln("  dmesg [n]");
     clks_shell_writeln("  ps");
@@ -1035,7 +1120,7 @@ static clks_bool clks_shell_cmd_mkdir(const char *arg) {
     }
 
     if (clks_shell_can_modify_path(path) == CLKS_FALSE) {
-        clks_shell_writeln("mkdir: target must be under /temp");
+        clks_shell_writeln("mkdir: target must be under /temp, /home, or /system/etc");
         return CLKS_FALSE;
     }
 
@@ -1062,7 +1147,7 @@ static clks_bool clks_shell_cmd_touch(const char *arg) {
     }
 
     if (clks_shell_can_modify_path(path) == CLKS_FALSE) {
-        clks_shell_writeln("touch: target must be under /temp");
+        clks_shell_writeln("touch: target must be under /temp, /home, or /system/etc");
         return CLKS_FALSE;
     }
 
@@ -1627,6 +1712,147 @@ static clks_bool clks_shell_cmd_memc(void) {
     return CLKS_TRUE;
 }
 
+static clks_bool clks_shell_external_ctx_write(const char *cmd, const char *arg) {
+    struct clks_shell_cmd_ctx ctx;
+
+    clks_memset(&ctx, 0, sizeof(ctx));
+    clks_shell_copy_line(ctx.cmd, sizeof(ctx.cmd), (cmd == CLKS_NULL) ? "" : cmd);
+    clks_shell_copy_line(ctx.arg, sizeof(ctx.arg), (arg == CLKS_NULL) ? "" : arg);
+    clks_shell_copy_line(ctx.cwd, sizeof(ctx.cwd), clks_shell_cwd);
+    clks_shell_copy_line(ctx.user_name, sizeof(ctx.user_name), clks_shell_user_name);
+    ctx.uid = clks_shell_user_uid;
+    ctx.gid = clks_shell_user_gid;
+
+    return clks_fs_write_all(CLKS_SHELL_CMD_CTX_PATH, &ctx, (u64)sizeof(ctx));
+}
+
+static void clks_shell_external_ret_reset(void) {
+    (void)clks_fs_remove(CLKS_SHELL_CMD_RET_PATH);
+}
+
+static clks_bool clks_shell_external_ret_read_apply(void) {
+    struct clks_shell_cmd_ret ret;
+    const void *payload;
+    u64 size = 0ULL;
+
+    payload = clks_fs_read_all(CLKS_SHELL_CMD_RET_PATH, &size);
+
+    if (payload == CLKS_NULL || size != (u64)sizeof(ret)) {
+        return CLKS_FALSE;
+    }
+
+    clks_memcpy(&ret, payload, sizeof(ret));
+
+    if ((ret.flags & CLKS_SHELL_CMD_RET_FLAG_CWD) != 0ULL && ret.cwd[0] == '/') {
+        clks_shell_copy_line(clks_shell_cwd, sizeof(clks_shell_cwd), ret.cwd);
+    }
+
+    if ((ret.flags & CLKS_SHELL_CMD_RET_FLAG_USER) != 0ULL && ret.user_name[0] != '\0') {
+        clks_shell_copy_line(clks_shell_user_name, sizeof(clks_shell_user_name), ret.user_name);
+        clks_shell_user_uid = ret.uid;
+        clks_shell_user_gid = ret.gid;
+    }
+
+    return CLKS_TRUE;
+}
+
+static clks_bool clks_shell_try_exec_external(const char *cmd, const char *arg, clks_bool *out_success) {
+    char canonical[CLKS_SHELL_CMD_MAX];
+    char path[CLKS_SHELL_PATH_MAX];
+    struct clks_fs_node_info info;
+    u64 status = (u64)-1;
+
+    if (out_success != CLKS_NULL) {
+        *out_success = CLKS_FALSE;
+    }
+
+    if (cmd == CLKS_NULL || cmd[0] == '\0') {
+        return CLKS_FALSE;
+    }
+
+    clks_shell_copy_line(canonical, sizeof(canonical), cmd);
+
+    if (clks_shell_streq(canonical, "dir") == CLKS_TRUE) {
+        clks_shell_copy_line(canonical, sizeof(canonical), "ls");
+    } else if (clks_shell_streq(canonical, "run") == CLKS_TRUE) {
+        clks_shell_copy_line(canonical, sizeof(canonical), "exec");
+    } else if (clks_shell_streq(canonical, "poweroff") == CLKS_TRUE) {
+        clks_shell_copy_line(canonical, sizeof(canonical), "shutdown");
+    } else if (clks_shell_streq(canonical, "reboot") == CLKS_TRUE) {
+        clks_shell_copy_line(canonical, sizeof(canonical), "restart");
+    } else if (clks_shell_streq(canonical, "cls") == CLKS_TRUE) {
+        clks_shell_copy_line(canonical, sizeof(canonical), "clear");
+    } else if (clks_shell_streq(canonical, "color") == CLKS_TRUE) {
+        clks_shell_copy_line(canonical, sizeof(canonical), "ansi");
+    }
+
+    if (clks_shell_resolve_exec_path(canonical, path, sizeof(path)) == CLKS_FALSE) {
+        return CLKS_FALSE;
+    }
+
+    if (clks_fs_stat(path, &info) == CLKS_FALSE || info.type != CLKS_FS_NODE_FILE) {
+        return CLKS_FALSE;
+    }
+
+    clks_shell_external_ret_reset();
+
+    if (clks_shell_external_ctx_write(canonical, arg) == CLKS_FALSE) {
+        clks_shell_writeln("exec: command context write failed");
+        return CLKS_TRUE;
+    }
+
+    if (clks_exec_run_pathv(path, arg, CLKS_SHELL_XSH_ENV, &status) == CLKS_FALSE || status == (u64)-1) {
+        clks_shell_writeln("exec: request failed");
+        (void)clks_fs_remove(CLKS_SHELL_CMD_CTX_PATH);
+        return CLKS_TRUE;
+    }
+
+    (void)clks_shell_external_ret_read_apply();
+    (void)clks_fs_remove(CLKS_SHELL_CMD_CTX_PATH);
+    (void)clks_fs_remove(CLKS_SHELL_CMD_RET_PATH);
+
+    if (status != 0ULL) {
+        clks_shell_writeln("exec: returned non-zero status");
+        clks_shell_print_kv_hex("  STATUS", status);
+        return CLKS_TRUE;
+    }
+
+    if (out_success != CLKS_NULL) {
+        *out_success = CLKS_TRUE;
+    }
+
+    return CLKS_TRUE;
+}
+
+static void clks_shell_try_root_handoff(void) {
+    clks_bool success = CLKS_FALSE;
+
+    if (clks_shell_ready == CLKS_FALSE) {
+        return;
+    }
+
+    if (clks_shell_user_uid != 0ULL || clks_shell_streq(clks_shell_user_name, "root") == CLKS_FALSE) {
+        clks_shell_root_handoff_attempted = CLKS_FALSE;
+        return;
+    }
+
+    if (clks_shell_root_handoff_attempted == CLKS_TRUE) {
+        return;
+    }
+
+    clks_shell_root_handoff_attempted = CLKS_TRUE;
+    clks_shell_writeln("shell: auto handoff to xsh");
+
+    if (clks_shell_try_exec_external(CLKS_SHELL_XSH_CMD, "", &success) == CLKS_TRUE && success == CLKS_TRUE) {
+        clks_shell_writeln("shell: xsh exited, back to kernel shell");
+        clks_shell_reset_line();
+        clks_shell_history_cancel_nav();
+        clks_shell_prompt();
+    } else {
+        clks_shell_writeln("shell: xsh handoff failed; stay in kernel shell");
+    }
+}
+
 static void clks_shell_execute_line(const char *line) {
     char line_buf[CLKS_SHELL_LINE_MAX];
     char cmd[CLKS_SHELL_CMD_MAX];
@@ -1656,11 +1882,17 @@ static void clks_shell_execute_line(const char *line) {
     if (clks_shell_streq(cmd, "help") == CLKS_TRUE) {
         success = clks_shell_cmd_help();
     } else if (clks_shell_streq(cmd, "whoami") == CLKS_TRUE) {
-        success = clks_shell_cmd_whoami();
+        if (clks_shell_try_exec_external(cmd, arg, &success) == CLKS_FALSE) {
+            success = clks_shell_cmd_whoami();
+        }
     } else if (clks_shell_streq(cmd, "id") == CLKS_TRUE) {
-        success = clks_shell_cmd_id();
+        if (clks_shell_try_exec_external(cmd, arg, &success) == CLKS_FALSE) {
+            success = clks_shell_cmd_id();
+        }
     } else if (clks_shell_streq(cmd, "su") == CLKS_TRUE) {
-        success = clks_shell_cmd_su(arg);
+        if (clks_shell_try_exec_external(cmd, arg, &success) == CLKS_FALSE) {
+            success = clks_shell_cmd_su(arg);
+        }
     } else if (clks_shell_streq(cmd, "ls") == CLKS_TRUE) {
         success = clks_shell_cmd_ls(arg);
     } else if (clks_shell_streq(cmd, "cat") == CLKS_TRUE) {
@@ -1717,6 +1949,8 @@ static void clks_shell_execute_line(const char *line) {
         success = clks_shell_cmd_clear();
     } else if (clks_shell_streq(cmd, "kbdstat") == CLKS_TRUE) {
         success = clks_shell_cmd_kbdstat();
+    } else if (clks_shell_try_exec_external(cmd, arg, &success) == CLKS_TRUE) {
+        known = CLKS_TRUE;
     } else {
         known = CLKS_FALSE;
         success = CLKS_FALSE;
@@ -1976,6 +2210,7 @@ void clks_shell_init(void) {
     clks_shell_cmd_unknown = 0ULL;
     clks_shell_pending_command = CLKS_FALSE;
     clks_shell_pending_line[0] = '\0';
+    clks_shell_root_handoff_attempted = CLKS_FALSE;
 
     if (clks_tty_ready() == CLKS_FALSE) {
         clks_shell_ready = CLKS_FALSE;
@@ -1989,7 +2224,7 @@ void clks_shell_init(void) {
     clks_shell_writeln("XiaoBaiOS shell ready");
     clks_shell_writeln("bash-like keys: Ctrl+A/E/K/U/W/L, Ctrl+D, arrows, Home/End");
     clks_shell_writeln("history: Up/Down, editing: Left/Right, Shift+Home/End");
-    clks_shell_writeln("/temp is writable in kernel shell mode");
+    clks_shell_writeln("/temp, /home, and /system/etc are writable in kernel shell mode");
     clks_shell_prompt();
 
     clks_log(CLKS_LOG_INFO, "SHELL", "INTERACTIVE LOOP ONLINE");
@@ -2019,6 +2254,7 @@ void clks_shell_pump_input(u32 max_chars) {
 
 void clks_shell_tick(u64 tick) {
     (void)tick;
+    clks_shell_try_root_handoff();
     clks_shell_drain_input(CLKS_SHELL_INPUT_BUDGET);
     clks_shell_process_pending_command();
 }

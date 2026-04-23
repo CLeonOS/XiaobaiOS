@@ -11,7 +11,10 @@ XiaoBaiOS 是一个独立的、基于 CLKS 内核的操作系统项目。
 - 纯终端版 `menuconfig`，支持中文
 - 从 `fonts/MapleMonoNormal-CN-Medium.ttf` 构建 PSF 字体
 - `xiaobaios/apps/` 下的用户程序会被编译并打包进 ramdisk
-- shell 内建命令支持 `ansi`、`ansitest`、`elfrunner`、`memc`
+- 提供类 Linux 账户基础：`/system/etc/passwd`、`/system/etc/shadow`、`/system/etc/group`
+- 提供账户管理用户态 ELF：`whoami`、`id`、`su`、`useradd`、`passwd`
+- 新增用户态 shell：`xsh`（仅外部 ELF 命令，基于 PATH 查找）
+- shell 内建命令支持 `ansi`、`ansitest`、`elfrunner`、`memc`（并支持外部 ELF 优先）
 
 ## 仓库结构
 
@@ -60,9 +63,23 @@ make clean-all
 
 - `ansi_main.c`
 - `ansitest_main.c`
+- `whoami_main.c`、`id_main.c`、`su_main.c`、`useradd_main.c`、`passwd_main.c`
 - `cmd_runtime.c` / `cmd_runtime.h`
 
-shell 里也已经内建了 `ansi`、`ansitest`、`elfrunner`、`memc`，方便直接测试发行版镜像。
+内核 shell 保留少量内建命令，但现在会优先执行 `/shell/*.elf` 的独立程序（包括账户管理命令）；若外部 ELF 不存在再回退到内建。
+
+当当前会话身份为 root 时，内核 shell 会自动切换到 `/shell/xsh.elf`。
+
+`xsh` 本身不再内建文件/管理命令：`cd`、`pwd`、`ls`、`cat`、`mkdir`、`touch`、`write`、`append`、`cp`、`mv`、`rm`、`help`、`exit`、`whoami`、`id`、`su`、`useradd`、`passwd` 都是独立 ELF，通过 `PATH` 解析执行。
+
+## 账户系统
+
+- 账户数据库位于 `/system/etc/passwd`、`/system/etc/shadow`、`/system/etc/group`
+- 默认账户为 `root`（uid/gid 均为 `0`，home 为 `/home/root`）
+- 密码哈希当前使用项目内轻量格式 `x1$<hex-hash>`（适合当前阶段）
+- `useradd <name>` 会创建用户/组条目并创建 `/home/<name>`
+- `passwd [user]` 修改密码（`root` 可修改任意用户）
+- `su [user]` 可切换 shell 当前身份，并更新提示符与权限
 
 ## 构建产物
 

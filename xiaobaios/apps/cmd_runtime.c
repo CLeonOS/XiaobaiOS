@@ -98,6 +98,9 @@ void ush_init_state(ush_state *sh) {
 
     ush_zero(sh, (u64)sizeof(*sh));
     ush_copy(sh->cwd, (u64)sizeof(sh->cwd), "/");
+    ush_copy(sh->user_name, (u64)sizeof(sh->user_name), "root");
+    sh->uid = 0ULL;
+    sh->gid = 0ULL;
     sh->history_nav = -1;
 }
 
@@ -490,6 +493,60 @@ int ush_path_is_under_temp(const char *path) {
     return (path[5] == '\0' || path[5] == '/') ? 1 : 0;
 }
 
+int ush_path_is_under_home(const char *path) {
+    if (path == (const char *)0) {
+        return 0;
+    }
+    if (strncmp(path, "/home", 5U) != 0) {
+        return 0;
+    }
+    return (path[5] == '\0' || path[5] == '/') ? 1 : 0;
+}
+
+int ush_path_is_under_current_home(const ush_state *sh, const char *path) {
+    char prefix[USH_PATH_MAX];
+    int written;
+
+    if (sh == (const ush_state *)0 || path == (const char *)0 || sh->user_name[0] == '\0') {
+        return 0;
+    }
+
+    if (sh->uid == 0ULL && ush_streq(sh->user_name, "root") != 0) {
+        return ush_path_is_under_home(path);
+    }
+
+    written = snprintf(prefix, (unsigned long)sizeof(prefix), "/home/%s", sh->user_name);
+    if (written <= 0) {
+        return 0;
+    }
+
+    if (strncmp(path, prefix, (size_t)written) != 0) {
+        return 0;
+    }
+
+    return (path[(u64)written] == '\0' || path[(u64)written] == '/') ? 1 : 0;
+}
+
+int ush_can_modify_path(const ush_state *sh, const char *path) {
+    if (sh == (const ush_state *)0 || path == (const char *)0) {
+        return 0;
+    }
+
+    if (sh->uid == 0ULL) {
+        return 1;
+    }
+
+    if (ush_path_is_under_temp(path) != 0) {
+        return 1;
+    }
+
+    if (ush_path_is_under_current_home(sh, path) != 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
 int ush_split_first_and_rest(const char *arg, char *out_first, u64 out_first_size, const char **out_rest) {
     u64 i = 0ULL;
     u64 p = 0ULL;
@@ -588,10 +645,815 @@ int ush_command_ctx_read(ush_cmd_ctx *out_ctx) {
     return (got == (u64)sizeof(*out_ctx)) ? 1 : 0;
 }
 
+int ush_command_ctx_write(const ush_state *sh, const char *cmd, const char *arg) {
+    ush_cmd_ctx ctx;
+
+    if (sh == (const ush_state *)0 || cmd == (const char *)0) {
+        return 0;
+    }
+
+    ush_zero(&ctx, (u64)sizeof(ctx));
+    ush_copy(ctx.cmd, (u64)sizeof(ctx.cmd), cmd);
+    ush_copy(ctx.arg, (u64)sizeof(ctx.arg), (arg == (const char *)0) ? "" : arg);
+    ush_copy(ctx.cwd, (u64)sizeof(ctx.cwd), sh->cwd);
+    ush_copy(ctx.user_name, (u64)sizeof(ctx.user_name), sh->user_name);
+    ctx.uid = sh->uid;
+    ctx.gid = sh->gid;
+
+    return (cleonos_sys_fs_write(USH_CMD_CTX_PATH, (const char *)&ctx, (u64)sizeof(ctx)) != 0ULL) ? 1 : 0;
+}
+
+int ush_command_ret_read(ush_cmd_ret *out_ret) {
+    u64 got;
+
+    if (out_ret == (ush_cmd_ret *)0) {
+        return 0;
+    }
+
+    ush_zero(out_ret, (u64)sizeof(*out_ret));
+    got = cleonos_sys_fs_read(USH_CMD_RET_PATH, (char *)out_ret, (u64)sizeof(*out_ret));
+    return (got == (u64)sizeof(*out_ret)) ? 1 : 0;
+}
+
 int ush_command_ret_write(const ush_cmd_ret *ret) {
     if (ret == (const ush_cmd_ret *)0) {
         return 0;
     }
 
     return (cleonos_sys_fs_write(USH_CMD_RET_PATH, (const char *)ret, (u64)sizeof(*ret)) != 0ULL) ? 1 : 0;
+}
+
+int ush_command_bootstrap_state(const char *expected_cmd, ush_cmd_ctx *out_ctx, ush_state *inout_state,
+                                char *out_initial_cwd, u64 out_initial_cwd_size, int *out_has_context) {
+    if (out_ctx == (ush_cmd_ctx *)0 || inout_state == (ush_state *)0 || out_initial_cwd == (char *)0 ||
+        out_initial_cwd_size < 2ULL || out_has_context == (int *)0) {
+        return 0;
+    }
+
+    *out_has_context = 0;
+    ush_zero(out_ctx, (u64)sizeof(*out_ctx));
+    ush_copy(out_initial_cwd, out_initial_cwd_size, inout_state->cwd);
+
+    if (ush_command_ctx_read(out_ctx) != 0) {
+        int cmd_ok = 1;
+
+        if (expected_cmd != (const char *)0 && expected_cmd[0] != '\0') {
+            cmd_ok = (out_ctx->cmd[0] != '\0' && ush_streq(out_ctx->cmd, expected_cmd) != 0) ? 1 : 0;
+        }
+
+        if (cmd_ok != 0) {
+            *out_has_context = 1;
+
+            if (out_ctx->cwd[0] == '/') {
+                ush_copy(inout_state->cwd, (u64)sizeof(inout_state->cwd), out_ctx->cwd);
+                ush_copy(out_initial_cwd, out_initial_cwd_size, inout_state->cwd);
+            }
+
+            ush_copy(inout_state->user_name, (u64)sizeof(inout_state->user_name), out_ctx->user_name);
+            inout_state->uid = out_ctx->uid;
+            inout_state->gid = out_ctx->gid;
+        }
+    }
+
+    if (inout_state->user_name[0] == '\0') {
+        ush_copy(inout_state->user_name, (u64)sizeof(inout_state->user_name), "root");
+        inout_state->uid = 0ULL;
+        inout_state->gid = 0ULL;
+    }
+
+    return 1;
+}
+
+int ush_command_flush_state(const ush_cmd_ctx *ctx, const ush_state *state, const char *initial_cwd) {
+    ush_cmd_ret ret;
+
+    if (ctx == (const ush_cmd_ctx *)0 || state == (const ush_state *)0 || initial_cwd == (const char *)0) {
+        return 0;
+    }
+
+    ush_zero(&ret, (u64)sizeof(ret));
+
+    if (ush_streq(state->cwd, initial_cwd) == 0) {
+        ret.flags |= USH_CMD_RET_FLAG_CWD;
+        ush_copy(ret.cwd, (u64)sizeof(ret.cwd), state->cwd);
+    }
+
+    if (state->exit_requested != 0) {
+        ret.flags |= USH_CMD_RET_FLAG_EXIT;
+        ret.exit_code = state->exit_code;
+    }
+
+    if (ush_streq(state->user_name, ctx->user_name) == 0 || state->uid != ctx->uid || state->gid != ctx->gid) {
+        ret.flags |= USH_CMD_RET_FLAG_USER;
+        ush_copy(ret.user_name, (u64)sizeof(ret.user_name), state->user_name);
+        ret.uid = state->uid;
+        ret.gid = state->gid;
+    }
+
+    return ush_command_ret_write(&ret);
+}
+
+#define USH_ACCOUNT_PASSWD_PATH "/system/etc/passwd"
+#define USH_ACCOUNT_SHADOW_PATH "/system/etc/shadow"
+#define USH_ACCOUNT_GROUP_PATH "/system/etc/group"
+#define USH_ACCOUNT_FILE_MAX 16384ULL
+
+static int ush_account_file_exists(const char *path) {
+    return (cleonos_sys_fs_stat_type(path) == 1ULL) ? 1 : 0;
+}
+
+static int ush_account_read_text_file(const char *path, char *out, u64 out_size, u64 *out_len) {
+    u64 got;
+
+    if (path == (const char *)0 || out == (char *)0 || out_size < 2ULL || out_len == (u64 *)0) {
+        return 0;
+    }
+
+    out[0] = '\0';
+    *out_len = 0ULL;
+
+    if (ush_account_file_exists(path) == 0) {
+        return 1;
+    }
+
+    got = cleonos_sys_fs_read(path, out, out_size - 1ULL);
+    if (got == (u64)-1) {
+        return 0;
+    }
+
+    if (got > out_size - 1ULL) {
+        got = out_size - 1ULL;
+    }
+
+    out[got] = '\0';
+    *out_len = got;
+    return 1;
+}
+
+static int ush_account_buf_append_char(char *buf, u64 buf_size, u64 *io_len, char ch) {
+    if (buf == (char *)0 || io_len == (u64 *)0 || *io_len + 2ULL > buf_size) {
+        return 0;
+    }
+
+    buf[*io_len] = ch;
+    *io_len += 1ULL;
+    buf[*io_len] = '\0';
+    return 1;
+}
+
+static int ush_account_buf_append_text(char *buf, u64 buf_size, u64 *io_len, const char *text) {
+    u64 i = 0ULL;
+
+    if (buf == (char *)0 || io_len == (u64 *)0 || text == (const char *)0) {
+        return 0;
+    }
+
+    while (text[i] != '\0') {
+        if (ush_account_buf_append_char(buf, buf_size, io_len, text[i]) == 0) {
+            return 0;
+        }
+        i++;
+    }
+
+    return 1;
+}
+
+static int ush_account_buf_append_u64_dec(char *buf, u64 buf_size, u64 *io_len, u64 value) {
+    char digits[32];
+    int written;
+
+    written = snprintf(digits, (unsigned long)sizeof(digits), "%llu", (unsigned long long)value);
+    if (written <= 0) {
+        return 0;
+    }
+
+    return ush_account_buf_append_text(buf, buf_size, io_len, digits);
+}
+
+static int ush_account_parse_line_fields(char *line, char **fields, u64 max_fields) {
+    u64 i = 0ULL;
+    u64 count = 0ULL;
+
+    if (line == (char *)0 || fields == (char **)0 || max_fields == 0ULL) {
+        return 0;
+    }
+
+    fields[count++] = line;
+
+    while (line[i] != '\0') {
+        if (line[i] == ':') {
+            line[i] = '\0';
+            if (count < max_fields) {
+                fields[count++] = &line[i + 1ULL];
+            }
+        }
+        i++;
+    }
+
+    return (int)count;
+}
+
+static int ush_account_next_line(const char *text, u64 text_len, u64 *io_pos, char *out_line, u64 out_line_size) {
+    u64 pos;
+    u64 start;
+    u64 end;
+    u64 len;
+
+    if (text == (const char *)0 || io_pos == (u64 *)0 || out_line == (char *)0 || out_line_size == 0ULL) {
+        return 0;
+    }
+
+    pos = *io_pos;
+    if (pos >= text_len) {
+        return 0;
+    }
+
+    start = pos;
+    while (pos < text_len && text[pos] != '\n') {
+        pos++;
+    }
+    end = pos;
+
+    if (pos < text_len && text[pos] == '\n') {
+        pos++;
+    }
+    *io_pos = pos;
+
+    while (end > start && text[end - 1ULL] == '\r') {
+        end--;
+    }
+
+    len = end - start;
+    if (len >= out_line_size) {
+        len = out_line_size - 1ULL;
+    }
+
+    (void)memcpy(out_line, text + start, (size_t)len);
+    out_line[len] = '\0';
+    return 1;
+}
+
+static u64 ush_account_hash_password(const char *password) {
+    u64 hash = 1469598103934665603ULL;
+    u64 i = 0ULL;
+
+    if (password == (const char *)0) {
+        return hash;
+    }
+
+    while (password[i] != '\0') {
+        hash ^= (u64)(unsigned char)password[i];
+        hash *= 1099511628211ULL;
+        i++;
+    }
+
+    return hash;
+}
+
+static int ush_account_format_hash(const char *password, char *out_hash, u64 out_size) {
+    int written;
+    u64 hash;
+
+    if (out_hash == (char *)0 || out_size < 8ULL) {
+        return 0;
+    }
+
+    hash = ush_account_hash_password(password);
+    written = snprintf(out_hash, (unsigned long)out_size, "x1$%016llX", (unsigned long long)hash);
+    return (written > 0) ? 1 : 0;
+}
+
+int ush_account_validate_name(const char *name) {
+    u64 i;
+    u64 len;
+
+    if (name == (const char *)0 || name[0] == '\0') {
+        return 0;
+    }
+
+    len = ush_strlen(name);
+    if (len >= USH_USER_NAME_MAX) {
+        return 0;
+    }
+
+    if (!(isalpha((unsigned char)name[0]) != 0 || name[0] == '_')) {
+        return 0;
+    }
+
+    for (i = 1ULL; i < len; i++) {
+        char ch = name[i];
+        if (!(isalnum((unsigned char)ch) != 0 || ch == '_' || ch == '-')) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int ush_account_lookup_passwd(const char *name, ush_account_record *out_rec) {
+    char text[USH_ACCOUNT_FILE_MAX];
+    u64 text_len = 0ULL;
+    u64 pos = 0ULL;
+
+    if (name == (const char *)0 || name[0] == '\0') {
+        return 0;
+    }
+
+    if (ush_account_read_text_file(USH_ACCOUNT_PASSWD_PATH, text, (u64)sizeof(text), &text_len) == 0) {
+        return 0;
+    }
+
+    while (pos < text_len) {
+        char line[512];
+        char *fields[8];
+        int field_count;
+        u64 uid;
+        u64 gid;
+
+        if (ush_account_next_line(text, text_len, &pos, line, (u64)sizeof(line)) == 0) {
+            break;
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        field_count = ush_account_parse_line_fields(line, fields, 8ULL);
+        if (field_count < 7) {
+            continue;
+        }
+
+        if (ush_streq(fields[0], name) == 0) {
+            continue;
+        }
+
+        if (ush_parse_u64_dec(fields[2], &uid) == 0 || ush_parse_u64_dec(fields[3], &gid) == 0) {
+            return 0;
+        }
+
+        if (out_rec != (ush_account_record *)0) {
+            ush_zero(out_rec, (u64)sizeof(*out_rec));
+            ush_copy(out_rec->name, (u64)sizeof(out_rec->name), fields[0]);
+            out_rec->uid = uid;
+            out_rec->gid = gid;
+            ush_copy(out_rec->home, (u64)sizeof(out_rec->home), fields[5]);
+            ush_copy(out_rec->shell, (u64)sizeof(out_rec->shell), fields[6]);
+        }
+
+        return 1;
+    }
+
+    return 0;
+}
+
+int ush_account_lookup_passwd_by_uid(u64 uid, ush_account_record *out_rec) {
+    char text[USH_ACCOUNT_FILE_MAX];
+    u64 text_len = 0ULL;
+    u64 pos = 0ULL;
+
+    if (ush_account_read_text_file(USH_ACCOUNT_PASSWD_PATH, text, (u64)sizeof(text), &text_len) == 0) {
+        return 0;
+    }
+
+    while (pos < text_len) {
+        char line[512];
+        char *fields[8];
+        int field_count;
+        u64 line_uid;
+        u64 line_gid;
+
+        if (ush_account_next_line(text, text_len, &pos, line, (u64)sizeof(line)) == 0) {
+            break;
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        field_count = ush_account_parse_line_fields(line, fields, 8ULL);
+        if (field_count < 7) {
+            continue;
+        }
+
+        if (ush_parse_u64_dec(fields[2], &line_uid) == 0 || ush_parse_u64_dec(fields[3], &line_gid) == 0) {
+            continue;
+        }
+
+        if (line_uid != uid) {
+            continue;
+        }
+
+        if (out_rec != (ush_account_record *)0) {
+            ush_zero(out_rec, (u64)sizeof(*out_rec));
+            ush_copy(out_rec->name, (u64)sizeof(out_rec->name), fields[0]);
+            out_rec->uid = line_uid;
+            out_rec->gid = line_gid;
+            ush_copy(out_rec->home, (u64)sizeof(out_rec->home), fields[5]);
+            ush_copy(out_rec->shell, (u64)sizeof(out_rec->shell), fields[6]);
+        }
+
+        return 1;
+    }
+
+    return 0;
+}
+
+int ush_account_lookup_shadow_hash(const char *name, char *out_hash, u64 out_size) {
+    char text[USH_ACCOUNT_FILE_MAX];
+    u64 text_len = 0ULL;
+    u64 pos = 0ULL;
+
+    if (name == (const char *)0 || out_hash == (char *)0 || out_size == 0ULL) {
+        return 0;
+    }
+
+    out_hash[0] = '\0';
+
+    if (ush_account_read_text_file(USH_ACCOUNT_SHADOW_PATH, text, (u64)sizeof(text), &text_len) == 0) {
+        return 0;
+    }
+
+    while (pos < text_len) {
+        char line[512];
+        char *fields[4];
+        int field_count;
+
+        if (ush_account_next_line(text, text_len, &pos, line, (u64)sizeof(line)) == 0) {
+            break;
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        field_count = ush_account_parse_line_fields(line, fields, 4ULL);
+        if (field_count < 2) {
+            continue;
+        }
+
+        if (ush_streq(fields[0], name) == 0) {
+            continue;
+        }
+
+        ush_copy(out_hash, out_size, fields[1]);
+        return 1;
+    }
+
+    return 0;
+}
+
+int ush_account_verify_password(const char *name, const char *password) {
+    char stored[64];
+    char current[64];
+
+    if (ush_account_lookup_shadow_hash(name, stored, (u64)sizeof(stored)) == 0) {
+        return 0;
+    }
+
+    if (stored[0] == '\0' || ush_streq(stored, "!") != 0) {
+        return 0;
+    }
+
+    if (ush_account_format_hash(password, current, (u64)sizeof(current)) == 0) {
+        return 0;
+    }
+
+    return ush_streq(stored, current);
+}
+
+int ush_account_set_password(const char *name, const char *password) {
+    char input[USH_ACCOUNT_FILE_MAX];
+    char output[USH_ACCOUNT_FILE_MAX];
+    char hash[64];
+    u64 input_len = 0ULL;
+    u64 pos = 0ULL;
+    u64 out_len = 0ULL;
+    int updated = 0;
+
+    if (name == (const char *)0 || name[0] == '\0') {
+        return 0;
+    }
+
+    if (ush_account_format_hash(password, hash, (u64)sizeof(hash)) == 0) {
+        return 0;
+    }
+
+    if (ush_account_read_text_file(USH_ACCOUNT_SHADOW_PATH, input, (u64)sizeof(input), &input_len) == 0) {
+        return 0;
+    }
+
+    output[0] = '\0';
+
+    while (pos < input_len) {
+        char line[512];
+        char *fields[4];
+        int field_count;
+
+        if (ush_account_next_line(input, input_len, &pos, line, (u64)sizeof(line)) == 0) {
+            break;
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        field_count = ush_account_parse_line_fields(line, fields, 4ULL);
+        if (field_count >= 2 && ush_streq(fields[0], name) != 0) {
+            if (ush_account_buf_append_text(output, (u64)sizeof(output), &out_len, name) == 0 ||
+                ush_account_buf_append_char(output, (u64)sizeof(output), &out_len, ':') == 0 ||
+                ush_account_buf_append_text(output, (u64)sizeof(output), &out_len, hash) == 0 ||
+                ush_account_buf_append_char(output, (u64)sizeof(output), &out_len, '\n') == 0) {
+                return 0;
+            }
+            updated = 1;
+            continue;
+        }
+
+        if (ush_account_buf_append_text(output, (u64)sizeof(output), &out_len, line) == 0 ||
+            ush_account_buf_append_char(output, (u64)sizeof(output), &out_len, '\n') == 0) {
+            return 0;
+        }
+    }
+
+    if (updated == 0) {
+        if (ush_account_buf_append_text(output, (u64)sizeof(output), &out_len, name) == 0 ||
+            ush_account_buf_append_char(output, (u64)sizeof(output), &out_len, ':') == 0 ||
+            ush_account_buf_append_text(output, (u64)sizeof(output), &out_len, hash) == 0 ||
+            ush_account_buf_append_char(output, (u64)sizeof(output), &out_len, '\n') == 0) {
+            return 0;
+        }
+    }
+
+    return (cleonos_sys_fs_write(USH_ACCOUNT_SHADOW_PATH, output, out_len) != 0ULL) ? 1 : 0;
+}
+
+int ush_group_lookup_name_by_gid(u64 gid, char *out_name, u64 out_size) {
+    char text[USH_ACCOUNT_FILE_MAX];
+    u64 text_len = 0ULL;
+    u64 pos = 0ULL;
+
+    if (out_name == (char *)0 || out_size == 0ULL) {
+        return 0;
+    }
+
+    out_name[0] = '\0';
+
+    if (ush_account_read_text_file(USH_ACCOUNT_GROUP_PATH, text, (u64)sizeof(text), &text_len) == 0) {
+        return 0;
+    }
+
+    while (pos < text_len) {
+        char line[512];
+        char *fields[6];
+        int field_count;
+        u64 line_gid;
+
+        if (ush_account_next_line(text, text_len, &pos, line, (u64)sizeof(line)) == 0) {
+            break;
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        field_count = ush_account_parse_line_fields(line, fields, 6ULL);
+        if (field_count < 3) {
+            continue;
+        }
+
+        if (ush_parse_u64_dec(fields[2], &line_gid) == 0 || line_gid != gid) {
+            continue;
+        }
+
+        ush_copy(out_name, out_size, fields[0]);
+        return 1;
+    }
+
+    return 0;
+}
+
+int ush_group_next_gid(u64 *out_gid) {
+    char text[USH_ACCOUNT_FILE_MAX];
+    u64 text_len = 0ULL;
+    u64 pos = 0ULL;
+    u64 max_gid = 999ULL;
+
+    if (out_gid == (u64 *)0) {
+        return 0;
+    }
+
+    if (ush_account_read_text_file(USH_ACCOUNT_GROUP_PATH, text, (u64)sizeof(text), &text_len) == 0) {
+        return 0;
+    }
+
+    while (pos < text_len) {
+        char line[512];
+        char *fields[6];
+        int field_count;
+        u64 gid;
+
+        if (ush_account_next_line(text, text_len, &pos, line, (u64)sizeof(line)) == 0) {
+            break;
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        field_count = ush_account_parse_line_fields(line, fields, 6ULL);
+        if (field_count < 3) {
+            continue;
+        }
+
+        if (ush_parse_u64_dec(fields[2], &gid) == 0) {
+            continue;
+        }
+
+        if (gid > max_gid) {
+            max_gid = gid;
+        }
+    }
+
+    *out_gid = max_gid + 1ULL;
+    return 1;
+}
+
+int ush_group_add_if_missing(const char *name, u64 gid) {
+    char text[USH_ACCOUNT_FILE_MAX];
+    u64 text_len = 0ULL;
+    u64 pos = 0ULL;
+    u64 out_len = 0ULL;
+
+    if (ush_account_validate_name(name) == 0) {
+        return 0;
+    }
+
+    if (ush_account_read_text_file(USH_ACCOUNT_GROUP_PATH, text, (u64)sizeof(text), &text_len) == 0) {
+        return 0;
+    }
+
+    while (pos < text_len) {
+        char line[512];
+        char *fields[6];
+        int field_count;
+
+        if (ush_account_next_line(text, text_len, &pos, line, (u64)sizeof(line)) == 0) {
+            break;
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        field_count = ush_account_parse_line_fields(line, fields, 6ULL);
+        if (field_count >= 1 && ush_streq(fields[0], name) != 0) {
+            return 1;
+        }
+    }
+
+    out_len = text_len;
+    if (out_len >= (u64)sizeof(text)) {
+        return 0;
+    }
+
+    if (out_len > 0ULL && text[out_len - 1ULL] != '\n') {
+        if (ush_account_buf_append_char(text, (u64)sizeof(text), &out_len, '\n') == 0) {
+            return 0;
+        }
+    }
+
+    if (ush_account_buf_append_text(text, (u64)sizeof(text), &out_len, name) == 0 ||
+        ush_account_buf_append_text(text, (u64)sizeof(text), &out_len, ":x:") == 0 ||
+        ush_account_buf_append_u64_dec(text, (u64)sizeof(text), &out_len, gid) == 0 ||
+        ush_account_buf_append_text(text, (u64)sizeof(text), &out_len, ":\n") == 0) {
+        return 0;
+    }
+
+    return (cleonos_sys_fs_write(USH_ACCOUNT_GROUP_PATH, text, out_len) != 0ULL) ? 1 : 0;
+}
+
+int ush_account_next_uid(u64 *out_uid) {
+    char text[USH_ACCOUNT_FILE_MAX];
+    u64 text_len = 0ULL;
+    u64 pos = 0ULL;
+    u64 max_uid = 999ULL;
+
+    if (out_uid == (u64 *)0) {
+        return 0;
+    }
+
+    if (ush_account_read_text_file(USH_ACCOUNT_PASSWD_PATH, text, (u64)sizeof(text), &text_len) == 0) {
+        return 0;
+    }
+
+    while (pos < text_len) {
+        char line[512];
+        char *fields[8];
+        int field_count;
+        u64 uid;
+
+        if (ush_account_next_line(text, text_len, &pos, line, (u64)sizeof(line)) == 0) {
+            break;
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        field_count = ush_account_parse_line_fields(line, fields, 8ULL);
+        if (field_count < 3) {
+            continue;
+        }
+
+        if (ush_parse_u64_dec(fields[2], &uid) == 0) {
+            continue;
+        }
+
+        if (uid > max_uid) {
+            max_uid = uid;
+        }
+    }
+
+    *out_uid = max_uid + 1ULL;
+    return 1;
+}
+
+int ush_account_add_user(const char *name, u64 uid, u64 gid, const char *home, const char *shell) {
+    char passwd[USH_ACCOUNT_FILE_MAX];
+    char shadow[USH_ACCOUNT_FILE_MAX];
+    char local_home[USH_PATH_MAX];
+    char local_shell[USH_PATH_MAX];
+    u64 passwd_len = 0ULL;
+    u64 shadow_len = 0ULL;
+
+    if (ush_account_validate_name(name) == 0) {
+        return 0;
+    }
+
+    if (ush_account_lookup_passwd(name, (ush_account_record *)0) != 0) {
+        return 0;
+    }
+
+    if (home == (const char *)0 || home[0] == '\0') {
+        int written = snprintf(local_home, (unsigned long)sizeof(local_home), "/home/%s", name);
+        if (written <= 0) {
+            return 0;
+        }
+        home = local_home;
+    }
+
+    if (shell == (const char *)0 || shell[0] == '\0') {
+        ush_copy(local_shell, (u64)sizeof(local_shell), "/shell/xsh.elf");
+        shell = local_shell;
+    }
+
+    if (ush_account_read_text_file(USH_ACCOUNT_PASSWD_PATH, passwd, (u64)sizeof(passwd), &passwd_len) == 0) {
+        return 0;
+    }
+
+    if (passwd_len > 0ULL && passwd[passwd_len - 1ULL] != '\n') {
+        if (ush_account_buf_append_char(passwd, (u64)sizeof(passwd), &passwd_len, '\n') == 0) {
+            return 0;
+        }
+    }
+
+    if (ush_account_buf_append_text(passwd, (u64)sizeof(passwd), &passwd_len, name) == 0 ||
+        ush_account_buf_append_text(passwd, (u64)sizeof(passwd), &passwd_len, ":x:") == 0 ||
+        ush_account_buf_append_u64_dec(passwd, (u64)sizeof(passwd), &passwd_len, uid) == 0 ||
+        ush_account_buf_append_char(passwd, (u64)sizeof(passwd), &passwd_len, ':') == 0 ||
+        ush_account_buf_append_u64_dec(passwd, (u64)sizeof(passwd), &passwd_len, gid) == 0 ||
+        ush_account_buf_append_text(passwd, (u64)sizeof(passwd), &passwd_len, "::") == 0 ||
+        ush_account_buf_append_text(passwd, (u64)sizeof(passwd), &passwd_len, home) == 0 ||
+        ush_account_buf_append_char(passwd, (u64)sizeof(passwd), &passwd_len, ':') == 0 ||
+        ush_account_buf_append_text(passwd, (u64)sizeof(passwd), &passwd_len, shell) == 0 ||
+        ush_account_buf_append_char(passwd, (u64)sizeof(passwd), &passwd_len, '\n') == 0) {
+        return 0;
+    }
+
+    if (cleonos_sys_fs_write(USH_ACCOUNT_PASSWD_PATH, passwd, passwd_len) == 0ULL) {
+        return 0;
+    }
+
+    if (ush_account_read_text_file(USH_ACCOUNT_SHADOW_PATH, shadow, (u64)sizeof(shadow), &shadow_len) == 0) {
+        return 0;
+    }
+
+    if (shadow_len > 0ULL && shadow[shadow_len - 1ULL] != '\n') {
+        if (ush_account_buf_append_char(shadow, (u64)sizeof(shadow), &shadow_len, '\n') == 0) {
+            return 0;
+        }
+    }
+
+    if (ush_account_buf_append_text(shadow, (u64)sizeof(shadow), &shadow_len, name) == 0 ||
+        ush_account_buf_append_text(shadow, (u64)sizeof(shadow), &shadow_len, ":!\n") == 0) {
+        return 0;
+    }
+
+    if (cleonos_sys_fs_write(USH_ACCOUNT_SHADOW_PATH, shadow, shadow_len) == 0ULL) {
+        return 0;
+    }
+
+    (void)cleonos_sys_fs_mkdir("/home");
+    (void)cleonos_sys_fs_mkdir(home);
+    return 1;
 }

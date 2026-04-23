@@ -11,7 +11,10 @@ This repository now lives as its own distro workspace under `./xiaobaios`, separ
 - Terminal-only `menuconfig` with Chinese support
 - PSF font pipeline built from `fonts/MapleMonoNormal-CN-Medium.ttf`
 - Ramdisk packaging for built user apps from `xiaobaios/apps/`
-- Built-in shell commands for `ansi`, `ansitest`, `elfrunner`, `memc`
+- Linux-style account basics: `/system/etc/passwd`, `/system/etc/shadow`, `/system/etc/group`
+- Account management user ELFs: `whoami`, `id`, `su`, `useradd`, `passwd`
+- New user-space shell `xsh` (external-ELF only; PATH-based command lookup)
+- Built-in shell commands for `ansi`, `ansitest`, `elfrunner`, `memc` (and external ELF fallback)
 
 ## Repository Layout
 
@@ -60,9 +63,23 @@ User-space sources under `xiaobaios/apps/` are compiled and packed into the ramd
 
 - `ansi_main.c`
 - `ansitest_main.c`
+- `whoami_main.c`, `id_main.c`, `su_main.c`, `useradd_main.c`, `passwd_main.c`
 - `cmd_runtime.c` / `cmd_runtime.h`
 
-The shell also exposes built-in commands for `ansi`, `ansitest`, `elfrunner`, and `memc` so they can be invoked directly even when you are just testing the distro image.
+The kernel shell still has a small built-in set, but now prefers launching standalone ELFs from `/shell/*.elf` (including account commands), with fallback to built-ins when an external ELF is missing.
+
+When the session is root, kernel shell automatically hands off to `/shell/xsh.elf`.
+
+`xsh` itself has no built-in admin/file commands: commands like `cd`, `pwd`, `ls`, `cat`, `mkdir`, `touch`, `write`, `append`, `cp`, `mv`, `rm`, `help`, `exit`, `whoami`, `id`, `su`, `useradd`, and `passwd` are all independent ELF programs resolved via `PATH`.
+
+## Accounts
+
+- Account db files live in `/system/etc/passwd`, `/system/etc/shadow`, `/system/etc/group`
+- Default account: `root` (uid/gid `0`, home `/home/root`)
+- Password hash format is a lightweight project format (`x1$<hex-hash>`) suitable for this stage of the OS
+- `useradd <name>` creates user/group entries and `/home/<name>`
+- `passwd [user]` updates password (`root` can update any user)
+- `su [user]` switches effective shell identity and updates prompt/permissions
 
 ## Generated Outputs
 

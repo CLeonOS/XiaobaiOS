@@ -86,7 +86,7 @@ set(OBJ_ROOT "${BUILD_ROOT}/obj")
 set(ISO_ROOT "${BUILD_ROOT}/iso_root")
 set(KERNEL_ELF "${BUILD_ROOT}/clks_kernel.elf")
 set(RAMDISK_IMAGE "${BUILD_ROOT}/xiaobaios_ramdisk.tar")
-set(XIAOBAIOS_TTY_FONT_SOURCE "${CMAKE_SOURCE_DIR}/fonts/MapleMonoNormal-CN-Medium.ttf")
+set(XIAOBAIOS_TTY_FONT_SOURCE "${CMAKE_SOURCE_DIR}/fonts/system.ttf")
 set(XIAOBAIOS_TTY_PSF_IMAGE "${BUILD_ROOT}/generated/tty.psf")
 set(ISO_IMAGE "${CMAKE_SOURCE_DIR}/build/XiaoBaiOS-x86_64.iso")
 set(KERNEL_RUST_LIB "${BUILD_ROOT}/libclks_kernel_rust.a")
@@ -415,9 +415,9 @@ add_dependencies(kernel-symbols kernel)
 
 set(XIAOBAIOS_USER_APP_SOURCE_DIR "${CMAKE_SOURCE_DIR}/xiaobaios/apps")
 set(XIAOBAIOS_USER_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/xiaobaios/include")
-set(XIAOBAIOS_USER_COMMON_SOURCE_DIR "${CMAKE_SOURCE_DIR}/../cleonos/c/src")
-set(XIAOBAIOS_USER_LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/../cleonos/c/user.ld")
-set(XIAOBAIOS_USER_KELF_LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/../cleonos/c/kelf.ld")
+set(XIAOBAIOS_USER_COMMON_SOURCE_DIR "${CMAKE_SOURCE_DIR}/xiaobaios/src")
+set(XIAOBAIOS_USER_LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/xiaobaios/user.ld")
+set(XIAOBAIOS_USER_KELF_LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/xiaobaios/kelf.ld")
 set(XIAOBAIOS_USER_BUILD_ROOT "${BUILD_ROOT}/xiaobaios_user")
 set(XIAOBAIOS_USER_OBJ_ROOT "${XIAOBAIOS_USER_BUILD_ROOT}/obj")
 set(XIAOBAIOS_USER_APP_DIR "${XIAOBAIOS_USER_BUILD_ROOT}/apps")
@@ -460,6 +460,7 @@ set(XIAOBAIOS_USER_CFLAGS
     -ffreestanding
     -fno-stack-protector
     -fno-builtin
+    -mgeneral-regs-only
     -Wall
     -Wextra
     -Werror
@@ -471,6 +472,7 @@ set(XIAOBAIOS_USER_KMAIN_CFLAGS
     -ffreestanding
     -fno-stack-protector
     -fno-builtin
+    -mgeneral-regs-only
     -Wall
     -Wextra
     -Werror
@@ -693,6 +695,10 @@ if(XIAOBAIOS_CLKS_ENABLE_EXTERNAL_PSF)
         COMMAND ${PYTHON} "${CMAKE_SOURCE_DIR}/scripts/make_psf_font.py"
             --font "${XIAOBAIOS_TTY_FONT_SOURCE}"
             --output "${XIAOBAIOS_TTY_PSF_IMAGE}"
+            --width 10
+            --height 20
+            --font-size 16
+            --threshold 172
         DEPENDS "${CMAKE_SOURCE_DIR}/scripts/make_psf_font.py" "${XIAOBAIOS_TTY_FONT_SOURCE}"
         VERBATIM
     )

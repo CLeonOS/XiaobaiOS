@@ -20,11 +20,13 @@ typedef long long i64;
 #define USH_DMESG_DEFAULT 64ULL
 #define USH_DMESG_LINE_MAX 256ULL
 #define USH_COPY_MAX 65536U
+#define USH_USER_NAME_MAX 96ULL
 
 #define USH_CMD_CTX_PATH "/temp/.ush_cmd_ctx.bin"
 #define USH_CMD_RET_PATH "/temp/.ush_cmd_ret.bin"
 #define USH_CMD_RET_FLAG_CWD 0x1ULL
 #define USH_CMD_RET_FLAG_EXIT 0x2ULL
+#define USH_CMD_RET_FLAG_USER 0x4ULL
 
 typedef struct ush_state {
     char line[USH_LINE_MAX];
@@ -33,6 +35,9 @@ typedef struct ush_state {
     u64 rendered_len;
 
     char cwd[USH_PATH_MAX];
+    char user_name[USH_USER_NAME_MAX];
+    u64 uid;
+    u64 gid;
 
     char history[USH_HISTORY_MAX][USH_LINE_MAX];
     u64 history_count;
@@ -53,13 +58,27 @@ typedef struct ush_cmd_ctx {
     char cmd[USH_CMD_MAX];
     char arg[USH_ARG_MAX];
     char cwd[USH_PATH_MAX];
+    char user_name[USH_USER_NAME_MAX];
+    u64 uid;
+    u64 gid;
 } ush_cmd_ctx;
 
 typedef struct ush_cmd_ret {
     u64 flags;
     u64 exit_code;
     char cwd[USH_PATH_MAX];
+    char user_name[USH_USER_NAME_MAX];
+    u64 uid;
+    u64 gid;
 } ush_cmd_ret;
+
+typedef struct ush_account_record {
+    char name[USH_USER_NAME_MAX];
+    u64 uid;
+    u64 gid;
+    char home[USH_PATH_MAX];
+    char shell[USH_PATH_MAX];
+} ush_account_record;
 
 extern const char *ush_pipeline_stdin_text;
 extern u64 ush_pipeline_stdin_len;
@@ -88,11 +107,31 @@ int ush_resolve_path(const ush_state *sh, const char *arg, char *out_path, u64 o
 int ush_resolve_exec_path(const ush_state *sh, const char *arg, char *out_path, u64 out_size);
 int ush_path_is_under_system(const char *path);
 int ush_path_is_under_temp(const char *path);
+int ush_path_is_under_home(const char *path);
+int ush_path_is_under_current_home(const ush_state *sh, const char *path);
+int ush_can_modify_path(const ush_state *sh, const char *path);
 
 int ush_split_first_and_rest(const char *arg, char *out_first, u64 out_first_size, const char **out_rest);
 int ush_split_two_args(const char *arg, char *out_first, u64 out_first_size, char *out_second, u64 out_second_size);
 
 int ush_command_ctx_read(ush_cmd_ctx *out_ctx);
+int ush_command_ctx_write(const ush_state *sh, const char *cmd, const char *arg);
+int ush_command_ret_read(ush_cmd_ret *out_ret);
 int ush_command_ret_write(const ush_cmd_ret *ret);
+int ush_command_bootstrap_state(const char *expected_cmd, ush_cmd_ctx *out_ctx, ush_state *inout_state,
+                                char *out_initial_cwd, u64 out_initial_cwd_size, int *out_has_context);
+int ush_command_flush_state(const ush_cmd_ctx *ctx, const ush_state *state, const char *initial_cwd);
+
+int ush_account_validate_name(const char *name);
+int ush_account_lookup_passwd(const char *name, ush_account_record *out_rec);
+int ush_account_lookup_passwd_by_uid(u64 uid, ush_account_record *out_rec);
+int ush_account_lookup_shadow_hash(const char *name, char *out_hash, u64 out_size);
+int ush_account_verify_password(const char *name, const char *password);
+int ush_account_set_password(const char *name, const char *password);
+int ush_account_add_user(const char *name, u64 uid, u64 gid, const char *home, const char *shell);
+int ush_account_next_uid(u64 *out_uid);
+int ush_group_lookup_name_by_gid(u64 gid, char *out_name, u64 out_size);
+int ush_group_add_if_missing(const char *name, u64 gid);
+int ush_group_next_gid(u64 *out_gid);
 
 #endif
