@@ -2,19 +2,18 @@
 
 XiaoBaiOS 是一个独立的、基于 CLKS 内核的操作系统项目。
 
-当前仓库已经作为 `./xiaobaios` 下的独立发行版工作区存在，不再依赖上游 `cleonos` 的用户态应用接入方式。它保留了 CLKS 内核与启动链、终端式 shell、终端版 `menuconfig`、默认 LLVM 工具链，以及会被构建并打包进 ramdisk 的 `xiaobaios` 用户态程序。
+当前仓库已经作为CLKS独立发行版工作区存在，不再依赖上游 `CLeonOS` 的用户态应用接入方式。它保留了 CLKS 内核与启动链、终端式 shell、终端 `menuconfig`、默认 LLVM 工具链，以及会被构建并打包进 ramdisk 的 `xiaobaios` 用户态程序。
 
 ## 主要特性
 
 - 独立的发行版目录，位于 `xiaobaios/`
 - 默认 LLVM 工具链：`clang`、`ld.lld`、`llvm-objcopy`、`llvm-objdump`、`llvm-readelf`、`llvm-nm`、`llvm-addr2line`
 - 纯终端版 `menuconfig`，支持中文
-- 从 `fonts/MapleMonoNormal-CN-Medium.ttf` 构建 PSF 字体
+- 从 `fonts/system.ttf` 构建 PSF 字体
 - `xiaobaios/apps/` 下的用户程序会被编译并打包进 ramdisk
 - 提供类 Linux 账户基础：`/system/etc/passwd`、`/system/etc/shadow`、`/system/etc/group`
 - 提供账户管理用户态 ELF：`whoami`、`id`、`su`、`useradd`、`passwd`
-- 新增用户态 shell：`xsh`（仅外部 ELF 命令，基于 PATH 查找）
-- shell 内建命令支持 `ansi`、`ansitest`、`elfrunner`、`memc`（并支持外部 ELF 优先）
+- 提供用户态 shell：`xsh`（仅外部 ELF 命令，基于 PATH 查找）
 
 ## 仓库结构
 
@@ -51,7 +50,7 @@ make clean-all
 
 ## menuconfig
 
-`menuconfig` 是纯终端交互界面，不使用 Qt。
+`menuconfig` 是TUI交互界面，不使用 Qt。
 
 - 在 TTY 中运行时进入交互模式
 - 在管道或脚本环境中自动使用非交互模式
@@ -60,11 +59,6 @@ make clean-all
 ## 用户程序
 
 `xiaobaios/apps/` 下的用户态源码会在构建过程中编译，并打包进 ramdisk。
-
-- `ansi_main.c`
-- `ansitest_main.c`
-- `whoami_main.c`、`id_main.c`、`su_main.c`、`useradd_main.c`、`passwd_main.c`
-- `cmd_runtime.c` / `cmd_runtime.h`
 
 内核 shell 保留少量内建命令，但现在会优先执行 `/shell/*.elf` 的独立程序（包括账户管理命令）；若外部 ELF 不存在再回退到内建。
 
