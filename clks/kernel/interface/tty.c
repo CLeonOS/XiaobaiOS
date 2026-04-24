@@ -60,6 +60,8 @@ static clks_bool clks_tty_is_ready = CLKS_FALSE;
 static clks_bool clks_tty_cursor_visible = CLKS_FALSE;
 static clks_bool clks_tty_blink_enabled = CLKS_TRUE;
 static clks_bool clks_tty_defer_draw = CLKS_FALSE;
+static u32 clks_tty_batch_depth = 0U;
+static clks_bool clks_tty_render_pending = CLKS_FALSE;
 static clks_bool clks_tty_dirty_any = CLKS_FALSE;
 static clks_bool clks_tty_dirty_rows[CLKS_TTY_MAX_ROWS];
 static u64 clks_tty_blink_last_tick = CLKS_TTY_BLINK_TICK_UNSET;
@@ -67,6 +69,10 @@ static u64 clks_tty_blink_last_tick = CLKS_TTY_BLINK_TICK_UNSET;
 static u32 clks_tty_content_rows(void);
 static clks_bool clks_tty_scrollback_is_active(u32 tty_index);
 static void clks_tty_redraw_active(void);
+static void clks_tty_hide_cursor(void);
+static void clks_tty_draw_cursor(void);
+static void clks_tty_draw_status_bar(void);
+static void clks_tty_render_now(void);
 
 static u32 clks_tty_ansi_palette(u32 index) {
     static const u32 palette[16] = {0x00000000U, 0x00CD3131U, 0x000DBC79U, 0x00E5E510U, 0x002472C8U, 0x00BC3FBCU,
@@ -143,6 +149,62 @@ static void clks_tty_flush_dirty(void) {
     }
 
     clks_tty_dirty_reset();
+}
+
+static void clks_tty_render_now(void) {
+    if (clks_tty_is_ready == CLKS_FALSE || clks_tty_render_pending == CLKS_FALSE) {
+        return;
+    }
+
+    clks_tty_flush_dirty();
+
+    if (clks_tty_scrollback_is_active(clks_tty_active_index) == CLKS_FALSE) {
+        clks_tty_draw_cursor();
+        clks_tty_draw_status_bar();
+    }
+
+    clks_tty_reset_blink_timer();
+    clks_tty_render_pending = CLKS_FALSE;
+}
+
+static void clks_tty_begin_batch(void) {
+    if (clks_tty_is_ready == CLKS_FALSE) {
+        return;
+    }
+
+    if (clks_tty_batch_depth == 0U) {
+        clks_tty_hide_cursor();
+    }
+
+    clks_tty_batch_depth++;
+    clks_tty_defer_draw = CLKS_TRUE;
+}
+
+static void clks_tty_force_render(void) {
+    if (clks_tty_is_ready == CLKS_FALSE) {
+        return;
+    }
+
+    if (clks_tty_batch_depth > 0U) {
+        return;
+    }
+
+    if (clks_tty_render_pending == CLKS_TRUE) {
+        clks_tty_render_now();
+    }
+}
+
+static void clks_tty_end_batch(void) {
+    if (clks_tty_batch_depth == 0U) {
+        return;
+    }
+
+    clks_tty_batch_depth--;
+
+    if (clks_tty_batch_depth == 0U) {
+        clks_tty_defer_draw = CLKS_FALSE;
+        clks_tty_render_pending = CLKS_TRUE;
+    }
 }
 
 static u32 clks_tty_scrollback_logical_to_physical(u32 tty_index, u32 logical_index) {
@@ -1220,7 +1282,7 @@ void clks_tty_write_char(char ch) {
         return;
     }
 
-    clks_tty_hide_cursor();
+    clks_tty_begin_batch();
 
     tty_index = clks_tty_active_index;
 
@@ -1229,16 +1291,14 @@ void clks_tty_write_char(char ch) {
         clks_tty_redraw_active();
     }
 
-    clks_tty_defer_draw = CLKS_TRUE;
     if (clks_tty_ansi_process_byte(tty_index, ch) == CLKS_FALSE) {
         clks_tty_put_char_raw(tty_index, ch);
     }
-    clks_tty_defer_draw = CLKS_FALSE;
-    clks_tty_flush_dirty();
+    clks_tty_end_batch();
 
-    clks_tty_draw_cursor();
-    clks_tty_draw_status_bar();
-    clks_tty_reset_blink_timer();
+    if (clks_tty_batch_depth == 0U) {
+        clks_tty_force_render();
+    }
 }
 
 void clks_tty_write_n(const char *text, usize len) {
@@ -1249,7 +1309,7 @@ void clks_tty_write_n(const char *text, usize len) {
         return;
     }
 
-    clks_tty_hide_cursor();
+    clks_tty_begin_batch();
     tty_index = clks_tty_active_index;
 
     if (clks_tty_scrollback_is_active(tty_index) == CLKS_TRUE) {
@@ -1257,7 +1317,6 @@ void clks_tty_write_n(const char *text, usize len) {
         clks_tty_redraw_active();
     }
 
-    clks_tty_defer_draw = CLKS_TRUE;
     while (i < len) {
         if (clks_tty_ansi_process_byte(tty_index, text[i]) == CLKS_FALSE) {
             clks_tty_put_char_raw(tty_index, text[i]);
@@ -1265,12 +1324,11 @@ void clks_tty_write_n(const char *text, usize len) {
 
         i++;
     }
-    clks_tty_defer_draw = CLKS_FALSE;
-    clks_tty_flush_dirty();
+    clks_tty_end_batch();
 
-    clks_tty_draw_cursor();
-    clks_tty_draw_status_bar();
-    clks_tty_reset_blink_timer();
+    if (clks_tty_batch_depth == 0U) {
+        clks_tty_force_render();
+    }
 }
 
 void clks_tty_write(const char *text) {
@@ -1279,6 +1337,35 @@ void clks_tty_write(const char *text) {
     }
 
     clks_tty_write_n(text, clks_strlen(text));
+}
+
+void clks_tty_batch_begin(void) {
+    clks_tty_begin_batch();
+}
+
+void clks_tty_batch_end(void) {
+    clks_tty_end_batch();
+}
+
+void clks_tty_flush(void) {
+    if (clks_tty_is_ready == CLKS_FALSE) {
+        return;
+    }
+
+    if (clks_tty_batch_depth > 0U) {
+        return;
+    }
+
+    clks_tty_force_render();
+}
+
+void clks_tty_set_render_batch(clks_bool enabled) {
+    if (enabled == CLKS_TRUE) {
+        clks_tty_begin_batch();
+        return;
+    }
+
+    clks_tty_batch_end();
 }
 
 void clks_tty_switch(u32 tty_index) {
@@ -1294,11 +1381,21 @@ void clks_tty_switch(u32 tty_index) {
     clks_tty_active_index = tty_index;
     clks_tty_cursor_visible = CLKS_FALSE;
     clks_tty_redraw_active();
+    clks_tty_render_pending = CLKS_FALSE;
     clks_tty_reset_blink_timer();
 }
 
 void clks_tty_tick(u64 tick) {
-    if (clks_tty_is_ready == CLKS_FALSE || clks_tty_blink_enabled == CLKS_FALSE) {
+    if (clks_tty_is_ready == CLKS_FALSE) {
+        return;
+    }
+
+    if (clks_tty_render_pending == CLKS_TRUE && clks_tty_batch_depth == 0U) {
+        clks_tty_render_now();
+        clks_tty_blink_last_tick = tick;
+    }
+
+    if (clks_tty_blink_enabled == CLKS_FALSE) {
         return;
     }
 

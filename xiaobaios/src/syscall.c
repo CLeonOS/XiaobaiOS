@@ -131,6 +131,10 @@ u64 cleonos_sys_tty_write_char(char ch) {
     return cleonos_syscall(CLEONOS_SYSCALL_TTY_WRITE_CHAR, (u64)(unsigned char)ch, 0ULL, 0ULL);
 }
 
+u64 cleonos_sys_tty_batch(u64 enable) {
+    return cleonos_syscall(CLEONOS_SYSCALL_TTY_BATCH, enable, 0ULL, 0ULL);
+}
+
 u64 cleonos_sys_kbd_get_char(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_KBD_GET_CHAR, 0ULL, 0ULL, 0ULL);
 }

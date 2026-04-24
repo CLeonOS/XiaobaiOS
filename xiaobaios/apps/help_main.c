@@ -31,6 +31,10 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
     ush_writeln("  mv <src> <dst>");
     ush_writeln("  rm <path>");
     ush_writeln("  fastfetch");
+    ush_writeln("  diskinfo");
+    ush_writeln("  mkfsfat32 [label]");
+    ush_writeln("  mount [path]");
+    ush_writeln("  partctl <subcommand>");
     ush_writeln("  whoami  id  su  useradd  passwd");
 
     if (has_context != 0) {

@@ -191,6 +191,78 @@
       "default": "y"
     },
     {
+      "key": "CLEONOS_CLKS_ENABLE_SYSCALL_SERIAL_LOG",
+      "title": "SYSCALL Serial Logs",
+      "description": "Print user syscall CALL/RET trace logs to serial output.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
+      "key": "CLEONOS_CLKS_ENABLE_SYSCALL_USERID_SERIAL_LOG",
+      "title": "SYSCALL USER_ID Serial Logs",
+      "description": "Print USER_TRACE_BEGIN/END, PID, and USER_ID trace logs to serial output.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
+      "key": "CLEONOS_CLKS_ENABLE_LOG_LEVEL_DEBUG",
+      "title": "Kernel Log Level: DEBUG",
+      "description": "Allow CLKS_LOG_DEBUG messages to be emitted by clks_log/clks_log_hex.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
+      "key": "CLEONOS_CLKS_ENABLE_LOG_LEVEL_INFO",
+      "title": "Kernel Log Level: INFO",
+      "description": "Allow CLKS_LOG_INFO messages to be emitted by clks_log/clks_log_hex.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
+      "key": "CLEONOS_CLKS_ENABLE_LOG_LEVEL_WARN",
+      "title": "Kernel Log Level: WARN",
+      "description": "Allow CLKS_LOG_WARN messages to be emitted by clks_log/clks_log_hex.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
+      "key": "CLEONOS_CLKS_ENABLE_LOG_LEVEL_ERROR",
+      "title": "Kernel Log Level: ERROR",
+      "description": "Allow CLKS_LOG_ERROR messages to be emitted by clks_log/clks_log_hex.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
+      "key": "CLEONOS_CLKS_ENABLE_LOG_OUTPUT_SERIAL",
+      "title": "Kernel Log Output: Serial",
+      "description": "Send clks_log/clks_log_hex output to serial port.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
+      "key": "CLEONOS_CLKS_ENABLE_LOG_OUTPUT_TTY",
+      "title": "Kernel Log Output: TTY",
+      "description": "Render clks_log/clks_log_hex output to TTY with ANSI colors.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
+      "key": "CLEONOS_CLKS_ENABLE_LOG_OUTPUT_JOURNAL",
+      "title": "Kernel Log Output: Journal",
+      "description": "Store clks_log/clks_log_hex lines into in-memory log journal for dmesg/procfs reads.",
+      "type": "bool",
+      "default": true,
+      "group": "Logging Controls"
+    },
+    {
       "key": "CLEONOS_CLKS_ENABLE_USC",
       "title": "UserSafeController (USC)",
       "description": "Prompt before dangerous user syscalls and remember per-app approval for current boot.",

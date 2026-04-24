@@ -8,6 +8,8 @@ CMAKE_GENERATOR ?=
 CMAKE_EXTRA_ARGS ?=
 NO_COLOR ?= 0
 PYTHON ?= python3
+DISK_IMAGE_MB ?=
+QEMU_DRIVE_IMAGE ?= build/x86_64/xiaobaios_disk.img
 
 ifeq ($(strip $(CMAKE_GENERATOR)),)
 GEN_ARG :=
@@ -17,8 +19,12 @@ endif
 
 CMAKE_PASSTHROUGH_ARGS :=
 
+ifneq ($(strip $(DISK_IMAGE_MB)),)
+CMAKE_PASSTHROUGH_ARGS += -DXIAOBAIOS_DISK_IMAGE_MB=$(DISK_IMAGE_MB)
+endif
 
-.PHONY: all configure reconfigure setup setup-tools kernel ramdisk-root ramdisk iso run debug menuconfig clean clean-all help
+
+.PHONY: all configure reconfigure setup setup-tools kernel disk-image ramdisk-root ramdisk iso run debug menuconfig clean clean-all clean-drive-image help
 
 all: iso
 
@@ -33,6 +39,9 @@ setup-tools: configure
 
 kernel: configure
 > @$(CMAKE) --build $(CMAKE_BUILD_DIR) --target kernel
+
+disk-image: configure
+> @$(CMAKE) --build $(CMAKE_BUILD_DIR) --target disk-image
 
 ramdisk-root: configure
 > @$(CMAKE) --build $(CMAKE_BUILD_DIR) --target ramdisk-root
@@ -70,16 +79,21 @@ clean-all:
 >     rm -rf build build-cmake; \
 > fi
 
+clean-drive-image:
+> @rm -f "$(QEMU_DRIVE_IMAGE)"
+
 help:
 > @echo "XiaoBaiOS (CMake-backed wrapper)"
 > @echo "  make configure"
 > @echo "  make setup"
 > @echo "  make kernel"
+> @echo "  make disk-image"
 > @echo "  make iso"
 > @echo "  make run"
 > @echo "  make debug"
 > @echo "  make menuconfig"
 > @echo "  make clean"
 > @echo "  make clean-all"
+> @echo "  make clean-drive-image"
 > @echo ""
 > @echo "Default toolchain: clang + ld.lld + LLVM binutils"

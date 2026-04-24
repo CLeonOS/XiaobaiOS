@@ -95,6 +95,8 @@ set(OBJ_ROOT "${BUILD_ROOT}/obj")
 set(ISO_ROOT "${BUILD_ROOT}/iso_root")
 set(KERNEL_ELF "${BUILD_ROOT}/clks_kernel.elf")
 set(RAMDISK_IMAGE "${BUILD_ROOT}/xiaobaios_ramdisk.tar")
+set(DISK_IMAGE "${BUILD_ROOT}/xiaobaios_disk.img")
+set(XIAOBAIOS_DISK_IMAGE_MB "64" CACHE STRING "Default runtime disk image size in MB")
 set(XIAOBAIOS_TTY_FONT_SOURCE "${CMAKE_SOURCE_DIR}/fonts/system.ttf")
 set(XIAOBAIOS_TTY_PSF_IMAGE "${BUILD_ROOT}/generated/tty.psf")
 set(ISO_IMAGE "${CMAKE_SOURCE_DIR}/build/XiaoBaiOS-x86_64.iso")
@@ -173,6 +175,15 @@ cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_TTY_READY_LOG ON "Print TTY count/active
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_IDLE_DEBUG_LOG ON "Print idle loop debug log")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_PROCFS ON "Enable virtual /proc procfs syscall layer")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_EXEC_SERIAL_LOG ON "Enable EXEC info logs on serial output")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_SYSCALL_SERIAL_LOG ON "Enable syscall CALL/RET serial logs")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_SYSCALL_USERID_SERIAL_LOG ON "Enable syscall USER_TRACE/PID/USER_ID serial logs")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_DEBUG ON "Allow debug log level")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_INFO ON "Allow info log level")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_WARN ON "Allow warn log level")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_ERROR ON "Allow error log level")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_SERIAL ON "Send kernel logs to serial")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_TTY ON "Send kernel logs to tty")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_JOURNAL ON "Store kernel logs in journal")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_USC ON "Enable dangerous syscall confirmations")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_KBD_TTY_SWITCH_HOTKEY ON "Enable ALT+F1..F4 TTY switch hotkey")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_KBD_CTRL_SHORTCUTS ON "Enable Ctrl+A/C/V keyboard shortcuts")
@@ -207,6 +218,15 @@ cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_TTY_READY_LOG CLKS_CFG_TTY_READY_LOG_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_IDLE_DEBUG_LOG CLKS_CFG_IDLE_DEBUG_LOG_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_PROCFS CLKS_CFG_PROCFS_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_EXEC_SERIAL_LOG CLKS_CFG_EXEC_SERIAL_LOG_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_SYSCALL_SERIAL_LOG CLKS_CFG_SYSCALL_SERIAL_LOG_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_SYSCALL_USERID_SERIAL_LOG CLKS_CFG_SYSCALL_USERID_SERIAL_LOG_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_DEBUG CLKS_CFG_LOG_LEVEL_DEBUG_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_INFO CLKS_CFG_LOG_LEVEL_INFO_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_WARN CLKS_CFG_LOG_LEVEL_WARN_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_ERROR CLKS_CFG_LOG_LEVEL_ERROR_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_SERIAL CLKS_CFG_LOG_OUTPUT_SERIAL_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_TTY CLKS_CFG_LOG_OUTPUT_TTY_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_JOURNAL CLKS_CFG_LOG_OUTPUT_JOURNAL_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_USC CLKS_CFG_USC_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_KBD_TTY_SWITCH_HOTKEY CLKS_CFG_KBD_TTY_SWITCH_HOTKEY_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_KBD_CTRL_SHORTCUTS CLKS_CFG_KBD_CTRL_SHORTCUTS_INT)
@@ -271,6 +291,15 @@ cl_append_bool_define(CLKS_CFG_TTY_READY_LOG XIAOBAIOS_CLKS_ENABLE_TTY_READY_LOG
 cl_append_bool_define(CLKS_CFG_IDLE_DEBUG_LOG XIAOBAIOS_CLKS_ENABLE_IDLE_DEBUG_LOG)
 cl_append_bool_define(CLKS_CFG_PROCFS XIAOBAIOS_CLKS_ENABLE_PROCFS)
 cl_append_bool_define(CLKS_CFG_EXEC_SERIAL_LOG XIAOBAIOS_CLKS_ENABLE_EXEC_SERIAL_LOG)
+cl_append_bool_define(CLKS_CFG_SYSCALL_SERIAL_LOG XIAOBAIOS_CLKS_ENABLE_SYSCALL_SERIAL_LOG)
+cl_append_bool_define(CLKS_CFG_SYSCALL_USERID_SERIAL_LOG XIAOBAIOS_CLKS_ENABLE_SYSCALL_USERID_SERIAL_LOG)
+cl_append_bool_define(CLKS_CFG_LOG_LEVEL_DEBUG XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_DEBUG)
+cl_append_bool_define(CLKS_CFG_LOG_LEVEL_INFO XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_INFO)
+cl_append_bool_define(CLKS_CFG_LOG_LEVEL_WARN XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_WARN)
+cl_append_bool_define(CLKS_CFG_LOG_LEVEL_ERROR XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_ERROR)
+cl_append_bool_define(CLKS_CFG_LOG_OUTPUT_SERIAL XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_SERIAL)
+cl_append_bool_define(CLKS_CFG_LOG_OUTPUT_TTY XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_TTY)
+cl_append_bool_define(CLKS_CFG_LOG_OUTPUT_JOURNAL XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_JOURNAL)
 cl_append_bool_define(CLKS_CFG_USC XIAOBAIOS_CLKS_ENABLE_USC)
 cl_append_bool_define(CLKS_CFG_KBD_TTY_SWITCH_HOTKEY XIAOBAIOS_CLKS_ENABLE_KBD_TTY_SWITCH_HOTKEY)
 cl_append_bool_define(CLKS_CFG_KBD_CTRL_SHORTCUTS XIAOBAIOS_CLKS_ENABLE_KBD_CTRL_SHORTCUTS)
@@ -751,6 +780,15 @@ add_custom_command(
 
 add_custom_target(ramdisk DEPENDS "${RAMDISK_IMAGE}")
 
+add_custom_target(disk-image
+    COMMAND ${CMAKE_COMMAND}
+        "-DDISK_IMAGE=${DISK_IMAGE}"
+        "-DDISK_MB=${XIAOBAIOS_DISK_IMAGE_MB}"
+        -P "${CMAKE_SOURCE_DIR}/cmake/ensure_disk_image.cmake"
+    BYPRODUCTS "${DISK_IMAGE}"
+    VERBATIM
+)
+
 add_custom_target(setup-tools
     COMMAND ${CMAKE_COMMAND}
         "-DGIT_TOOL=${GIT_TOOL}"
@@ -855,8 +893,8 @@ add_custom_target(run
         "-DLOG_LEVEL=STEP"
         "-DLOG_TEXT=launching qemu run"
         -P "${CL_LOG_EMIT_SCRIPT}"
-    COMMAND ${QEMU_X86_64} -M q35 -m 1024M -cdrom "${ISO_IMAGE}" -serial stdio
-    DEPENDS iso
+    COMMAND ${QEMU_X86_64} -M pc -m 1024M -cdrom "${ISO_IMAGE}" -drive "file=${DISK_IMAGE},format=raw,if=none,id=xiaobaidisk,media=disk" -device "ide-hd,drive=xiaobaidisk,bus=ide.0" -serial stdio
+    DEPENDS iso disk-image
     USES_TERMINAL
 )
 
@@ -866,8 +904,8 @@ add_custom_target(debug
         "-DLOG_LEVEL=STEP"
         "-DLOG_TEXT=launching qemu debug (-s -S)"
         -P "${CL_LOG_EMIT_SCRIPT}"
-    COMMAND ${QEMU_X86_64} -M q35 -m 1024M -cdrom "${ISO_IMAGE}" -serial stdio -s -S
-    DEPENDS iso
+    COMMAND ${QEMU_X86_64} -M pc -m 1024M -cdrom "${ISO_IMAGE}" -drive "file=${DISK_IMAGE},format=raw,if=none,id=xiaobaidisk,media=disk" -device "ide-hd,drive=xiaobaidisk,bus=ide.0" -serial stdio -s -S
+    DEPENDS iso disk-image
     USES_TERMINAL
 )
 

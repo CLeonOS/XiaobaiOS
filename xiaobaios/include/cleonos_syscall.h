@@ -86,6 +86,7 @@ typedef struct cleonos_fb_blit_req {
 #define CLEONOS_SYSCALL_TTY_SWITCH 23ULL
 #define CLEONOS_SYSCALL_TTY_WRITE 24ULL
 #define CLEONOS_SYSCALL_TTY_WRITE_CHAR 25ULL
+#define CLEONOS_SYSCALL_TTY_BATCH 95ULL
 #define CLEONOS_SYSCALL_KBD_GET_CHAR 26ULL
 #define CLEONOS_SYSCALL_FS_STAT_TYPE 27ULL
 #define CLEONOS_SYSCALL_FS_STAT_SIZE 28ULL
@@ -185,6 +186,7 @@ u64 cleonos_sys_tty_active(void);
 u64 cleonos_sys_tty_switch(u64 tty_index);
 u64 cleonos_sys_tty_write(const char *text, u64 length);
 u64 cleonos_sys_tty_write_char(char ch);
+u64 cleonos_sys_tty_batch(u64 enable);
 u64 cleonos_sys_kbd_get_char(void);
 u64 cleonos_sys_fs_stat_type(const char *path);
 u64 cleonos_sys_fs_stat_size(const char *path);

@@ -222,6 +222,7 @@ static void clks_shell_render_line(void) {
     }
 
     clks_shell_rendered_len = clks_shell_line_len;
+    clks_tty_flush();
 }
 
 static clks_bool clks_shell_line_has_non_space(const char *line) {
@@ -415,6 +416,7 @@ static void clks_shell_redraw_clean(void) {
         return;
     }
 
+    clks_tty_batch_begin();
     clks_shell_write(CLKS_SHELL_ANSI_CLEAR);
     clks_shell_write(CLKS_SHELL_ANSI_HOME);
     clks_shell_write_char('\r');
@@ -425,6 +427,8 @@ static void clks_shell_redraw_clean(void) {
     }
 
     clks_shell_rendered_len = clks_shell_line_len;
+    clks_tty_batch_end();
+    clks_tty_flush();
 }
 
 static void clks_shell_trim(char *line) {
@@ -1874,7 +1878,7 @@ static void clks_shell_execute_line(const char *line) {
     clks_shell_trim(line_buf);
 
     if (line_buf[0] == '\0') {
-        return;
+        goto done;
     }
 
     clks_shell_split_line(line_buf, cmd, sizeof(cmd), arg, sizeof(arg));
@@ -1965,6 +1969,7 @@ static void clks_shell_execute_line(const char *line) {
         clks_shell_cmd_fail++;
     }
 
+done:
     if (known == CLKS_FALSE) {
         clks_shell_cmd_unknown++;
     }
@@ -2220,12 +2225,15 @@ void clks_shell_init(void) {
 
     clks_shell_ready = CLKS_TRUE;
 
+    clks_tty_batch_begin();
     clks_shell_writeln("");
     clks_shell_writeln("XiaoBaiOS shell ready");
     clks_shell_writeln("bash-like keys: Ctrl+A/E/K/U/W/L, Ctrl+D, arrows, Home/End");
     clks_shell_writeln("history: Up/Down, editing: Left/Right, Shift+Home/End");
     clks_shell_writeln("/temp, /home, and /system/etc are writable in kernel shell mode");
     clks_shell_prompt();
+    clks_tty_batch_end();
+    clks_tty_flush();
 
     clks_log(CLKS_LOG_INFO, "SHELL", "INTERACTIVE LOOP ONLINE");
 }
@@ -2250,11 +2258,14 @@ static void clks_shell_drain_input(u32 budget_limit) {
 
 void clks_shell_pump_input(u32 max_chars) {
     clks_shell_drain_input(max_chars);
+    clks_tty_flush();
 }
 
 void clks_shell_tick(u64 tick) {
     (void)tick;
+
     clks_shell_try_root_handoff();
     clks_shell_drain_input(CLKS_SHELL_INPUT_BUDGET);
     clks_shell_process_pending_command();
+    clks_tty_flush();
 }

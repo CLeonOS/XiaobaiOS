@@ -11,6 +11,7 @@ This repository now exists as an independent CLKS distribution workspace and no 
 - Pure terminal `menuconfig` with Chinese support
 - Builds a PSF font from `fonts/system.ttf`
 - User programs under `xiaobaios/apps/` are compiled and packaged into the ramdisk
+- Provides a runtime disk image plus disk tools: `diskinfo`, `mkfsfat32`, `mount`, `partctl`
 - Provides Linux-like account foundations: `/system/etc/passwd`, `/system/etc/shadow`, `/system/etc/group`
 - Provides user-space account management ELF tools: `whoami`, `id`, `su`, `useradd`, `passwd`
 - Provides user-space shell: `xsh` (external ELF commands only, resolved via `PATH`)
@@ -42,10 +43,12 @@ Common targets:
 ```bash
 make setup
 make kernel
+make disk-image
 make ramdisk
 make debug
 make clean
 make clean-all
+make clean-drive-image
 ```
 
 ## menuconfig
@@ -66,6 +69,8 @@ When the current session identity is `root`, the kernel shell automatically swit
 
 `xsh` itself no longer has built-in file/management commands: `cd`, `pwd`, `ls`, `cat`, `mkdir`, `touch`, `write`, `append`, `cp`, `mv`, `rm`, `help`, `exit`, `whoami`, `id`, `su`, `useradd`, and `passwd` are all standalone ELF programs executed through `PATH` resolution.
 
+The runtime disk image is `build/x86_64/xiaobaios_disk.img`, and `make run` / `make debug` attach it automatically.
+
 ## Account System
 
 - Account databases are located at `/system/etc/passwd`, `/system/etc/shadow`, `/system/etc/group`
@@ -74,6 +79,12 @@ When the current session identity is `root`, the kernel shell automatically swit
 - `useradd <name>` creates user/group entries and creates `/home/<name>`
 - `passwd [user]` changes passwords (`root` can change any user’s password)
 - `su [user]` switches the current shell identity and updates prompt and permissions
+
+## Runtime Disk
+
+- The runtime disk image is `build/x86_64/xiaobaios_disk.img`
+- `make run` and `make debug` attach the disk automatically
+- `make disk-image` creates or grows the image to the configured size
 
 ## Build Artifacts
 

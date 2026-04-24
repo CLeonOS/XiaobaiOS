@@ -35,7 +35,7 @@
 #define CLKS_SYSCALL_KDBG_STACK_WINDOW_BYTES (128ULL * 1024ULL)
 #define CLKS_SYSCALL_KERNEL_SYMBOL_FILE "/system/kernel.sym"
 #define CLKS_SYSCALL_KERNEL_ADDR_BASE 0xFFFF800000000000ULL
-#define CLKS_SYSCALL_STATS_MAX_ID CLKS_SYSCALL_DISK_WRITE_SECTOR
+#define CLKS_SYSCALL_STATS_MAX_ID CLKS_SYSCALL_TTY_BATCH
 #define CLKS_SYSCALL_DISK_SECTOR_BYTES 512U
 #define CLKS_SYSCALL_STATS_RING_SIZE 256U
 #define CLKS_SYSCALL_USC_MAX_ALLOWED_APPS 64U
@@ -46,6 +46,18 @@
 
 #ifndef CLKS_CFG_USC
 #define CLKS_CFG_USC 1
+#endif
+
+#ifndef CLKS_CFG_SYSCALL_SERIAL_LOG
+#define CLKS_CFG_SYSCALL_SERIAL_LOG 1
+#endif
+
+#ifndef CLKS_CFG_SYSCALL_USERID_SERIAL_LOG
+#define CLKS_CFG_SYSCALL_USERID_SERIAL_LOG 1
+#endif
+
+#ifndef CLKS_CFG_LOG_OUTPUT_SERIAL
+#define CLKS_CFG_LOG_OUTPUT_SERIAL 1
 #endif
 
 #ifndef CLKS_CFG_USC_SC_FS_MKDIR
@@ -324,17 +336,33 @@ static u64 clks_syscall_tty_write(u64 arg0, u64 arg1) {
         return 0ULL;
     }
 
+    clks_tty_batch_begin();
     for (i = 0ULL; i < len; i++) {
         buf[i] = src[i];
     }
 
     buf[len] = '\0';
     clks_tty_write(buf);
+    clks_tty_batch_end();
+    clks_tty_flush();
     return len;
 }
 
 static u64 clks_syscall_tty_write_char(u64 arg0) {
+    clks_tty_batch_begin();
     clks_tty_write_char((char)(arg0 & 0xFFULL));
+    clks_tty_batch_end();
+    clks_tty_flush();
+    return 1ULL;
+}
+
+static u64 clks_syscall_tty_batch(u64 arg0) {
+    if (arg0 == 0ULL) {
+        clks_tty_batch_end();
+    } else {
+        clks_tty_batch_begin();
+    }
+
     return 1ULL;
 }
 
@@ -2022,6 +2050,7 @@ static u64 clks_syscall_log_journal_read(u64 arg0, u64 arg1, u64 arg2) {
     return 1ULL;
 }
 
+#if CLKS_CFG_SYSCALL_USERID_SERIAL_LOG != 0
 static void clks_syscall_serial_write_hex64(u64 value) {
     i32 nibble;
 
@@ -2031,6 +2060,15 @@ static void clks_syscall_serial_write_hex64(u64 value) {
         clks_serial_write_char(ch);
     }
 }
+
+static void clks_syscall_serial_write_if_enabled(const char *text) {
+    if (CLKS_CFG_LOG_OUTPUT_SERIAL == 0 || text == CLKS_NULL) {
+        return;
+    }
+
+    clks_serial_write(text);
+}
+#endif
 
 #if CLKS_CFG_USC != 0
 static void clks_syscall_usc_sleep_until_input(void) {
@@ -2387,9 +2425,10 @@ static void clks_syscall_trace_user_program(u64 id) {
     clks_bool user_program_running =
         (clks_exec_is_running() == CLKS_TRUE && clks_exec_current_path_is_user() == CLKS_TRUE) ? CLKS_TRUE : CLKS_FALSE;
 
+#if CLKS_CFG_SYSCALL_USERID_SERIAL_LOG != 0
     if (user_program_running == CLKS_FALSE) {
         if (clks_syscall_user_trace_active == CLKS_TRUE) {
-            clks_serial_write("[DEBUG][SYSCALL] USER_TRACE_END\n");
+            clks_syscall_serial_write_if_enabled("[DEBUG][SYSCALL] USER_TRACE_END\n");
         }
 
         clks_syscall_user_trace_active = CLKS_FALSE;
@@ -2400,22 +2439,26 @@ static void clks_syscall_trace_user_program(u64 id) {
     if (clks_syscall_user_trace_active == CLKS_FALSE) {
         clks_syscall_user_trace_active = CLKS_TRUE;
         clks_syscall_user_trace_budget = CLKS_SYSCALL_USER_TRACE_BUDGET;
-        clks_serial_write("[DEBUG][SYSCALL] USER_TRACE_BEGIN\n");
-        clks_serial_write("[DEBUG][SYSCALL] PID: 0X");
+        clks_syscall_serial_write_if_enabled("[DEBUG][SYSCALL] USER_TRACE_BEGIN\n");
+        clks_syscall_serial_write_if_enabled("[DEBUG][SYSCALL] PID: 0X");
         clks_syscall_serial_write_hex64(clks_exec_current_pid());
-        clks_serial_write("\n");
+        clks_syscall_serial_write_if_enabled("\n");
     }
 
     if (clks_syscall_user_trace_budget > 0ULL) {
-        clks_serial_write("[DEBUG][SYSCALL] USER_ID: 0X");
+        clks_syscall_serial_write_if_enabled("[DEBUG][SYSCALL] USER_ID: 0X");
         clks_syscall_serial_write_hex64(id);
-        clks_serial_write("\n");
+        clks_syscall_serial_write_if_enabled("\n");
         clks_syscall_user_trace_budget--;
 
         if (clks_syscall_user_trace_budget == 0ULL) {
-            clks_serial_write("[DEBUG][SYSCALL] USER_TRACE_BUDGET_EXHAUSTED\n");
+            clks_syscall_serial_write_if_enabled("[DEBUG][SYSCALL] USER_TRACE_BUDGET_EXHAUSTED\n");
         }
     }
+#else
+    (void)id;
+    (void)user_program_running;
+#endif
 }
 
 void clks_syscall_init(void) {
@@ -2518,6 +2561,8 @@ u64 clks_syscall_dispatch(void *frame_ptr) {
         return clks_syscall_tty_write(frame->rbx, frame->rcx);
     case CLKS_SYSCALL_TTY_WRITE_CHAR:
         return clks_syscall_tty_write_char(frame->rbx);
+    case CLKS_SYSCALL_TTY_BATCH:
+        return clks_syscall_tty_batch(frame->rbx);
     case CLKS_SYSCALL_KBD_GET_CHAR:
         return clks_syscall_kbd_get_char();
     case CLKS_SYSCALL_FS_STAT_TYPE:
