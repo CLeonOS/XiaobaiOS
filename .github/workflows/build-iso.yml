@@ -1,0 +1,93 @@
+name: 构建 XiaoBaiOS ISO
+
+on:
+  workflow_dispatch:
+    inputs:
+      disk_image_mb:
+        description: "磁盘镜像大小（MB，留空使用项目默认值）"
+        required: false
+        default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build-iso.yml"
+      - "CMakeLists.txt"
+      - "Makefile"
+      - "cmake/**"
+      - "configs/**"
+      - "clks/**"
+      - "fonts/**"
+      - "ramdisk/**"
+      - "rust/**"
+      - "xiaobaios/**"
+      - ".gitmodules"
+
+permissions:
+  contents: read
+
+jobs:
+  build-iso:
+    name: 生成 ISO 镜像
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 拉取源码和子模块
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: 安装构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            build-essential \
+            clang \
+            cmake \
+            curl \
+            gawk \
+            git \
+            lld \
+            llvm \
+            mtools \
+            nasm \
+            rustc \
+            xorriso
+
+      - name: 同步 Limine 子模块
+        run: git submodule update --init --recursive
+
+      - name: 配置构建目录
+        run: |
+          if [ -n "${{ github.event.inputs.disk_image_mb }}" ]; then
+            make configure DISK_IMAGE_MB="${{ github.event.inputs.disk_image_mb }}"
+          else
+            make configure
+          fi
+
+      - name: 构建 ISO 镜像
+        run: |
+          if [ -n "${{ github.event.inputs.disk_image_mb }}" ]; then
+            make iso DISK_IMAGE_MB="${{ github.event.inputs.disk_image_mb }}"
+          else
+            make iso
+          fi
+
+      - name: 输出产物信息
+        run: |
+          ls -lh build/XiaoBaiOS-x86_64.iso
+          sha256sum build/XiaoBaiOS-x86_64.iso | tee build/XiaoBaiOS-x86_64.iso.sha256
+
+      - name: 上传 ISO 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: XiaoBaiOS-x86_64-iso
+          path: |
+            build/XiaoBaiOS-x86_64.iso
+            build/XiaoBaiOS-x86_64.iso.sha256
+          if-no-files-found: error
+          retention-days: 14
