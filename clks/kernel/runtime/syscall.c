@@ -9,6 +9,8 @@
 #include <clks/kelf.h>
 #include <clks/keyboard.h>
 #include <clks/log.h>
+#include <clks/mouse.h>
+#include <clks/net.h>
 #include <clks/serial.h>
 #include <clks/scheduler.h>
 #include <clks/service.h>
@@ -18,6 +20,7 @@
 #include <clks/types.h>
 #include <clks/userland.h>
 #include <clks/version.h>
+#include <clks/wm.h>
 
 #define CLKS_SYSCALL_LOG_MAX_LEN 191U
 #define CLKS_SYSCALL_PATH_MAX 192U
@@ -37,6 +40,8 @@
 #define CLKS_SYSCALL_KERNEL_ADDR_BASE 0xFFFF800000000000ULL
 #define CLKS_SYSCALL_STATS_MAX_ID CLKS_SYSCALL_TTY_BATCH
 #define CLKS_SYSCALL_DISK_SECTOR_BYTES 512U
+#define CLKS_SYSCALL_NET_UDP_PAYLOAD_MAX 1472U
+#define CLKS_SYSCALL_NET_TCP_IO_MAX 65536U
 #define CLKS_SYSCALL_STATS_RING_SIZE 256U
 #define CLKS_SYSCALL_USC_MAX_ALLOWED_APPS 64U
 
@@ -162,6 +167,77 @@ struct clks_syscall_fb_blit_req {
     u64 dst_x;
     u64 dst_y;
     u64 scale;
+};
+
+struct clks_syscall_net_udp_send_req {
+    u64 dst_ipv4_be;
+    u64 dst_port;
+    u64 src_port;
+    u64 payload_ptr;
+    u64 payload_len;
+};
+
+struct clks_syscall_net_udp_recv_req {
+    u64 out_payload_ptr;
+    u64 payload_capacity;
+    u64 out_src_ipv4_ptr;
+    u64 out_src_port_ptr;
+    u64 out_dst_port_ptr;
+};
+
+struct clks_syscall_net_tcp_connect_req {
+    u64 dst_ipv4_be;
+    u64 dst_port;
+    u64 src_port;
+    u64 poll_budget;
+};
+
+struct clks_syscall_net_tcp_send_req {
+    u64 payload_ptr;
+    u64 payload_len;
+    u64 poll_budget;
+};
+
+struct clks_syscall_net_tcp_recv_req {
+    u64 out_payload_ptr;
+    u64 payload_capacity;
+    u64 poll_budget;
+};
+
+struct clks_syscall_mouse_state_user {
+    u64 x;
+    u64 y;
+    u64 buttons;
+    u64 packet_count;
+    u64 ready;
+};
+
+struct clks_syscall_wm_create_req {
+    u64 x;
+    u64 y;
+    u64 width;
+    u64 height;
+    u64 flags;
+};
+
+struct clks_syscall_wm_present_req {
+    u64 window_id;
+    u64 pixels_ptr;
+    u64 src_width;
+    u64 src_height;
+    u64 src_pitch_bytes;
+};
+
+struct clks_syscall_wm_move_req {
+    u64 window_id;
+    u64 x;
+    u64 y;
+};
+
+struct clks_syscall_wm_resize_req {
+    u64 window_id;
+    u64 width;
+    u64 height;
 };
 
 static clks_bool clks_syscall_ready = CLKS_FALSE;

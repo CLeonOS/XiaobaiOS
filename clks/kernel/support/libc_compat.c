@@ -30,3 +30,33 @@ int memcmp(const void *left, const void *right, usize count) {
 int bcmp(const void *left, const void *right, usize count) {
     return memcmp(left, right, count);
 }
+
+usize strlen(const char *str) {
+    return clks_strlen(str);
+}
+
+char *strchr(const char *str, int ch) {
+    char needle = (char)ch;
+
+    if (str == CLKS_NULL) {
+        return CLKS_NULL;
+    }
+
+    while (*str != '\0') {
+        if (*str == needle) {
+            return (char *)str;
+        }
+
+        str++;
+    }
+
+    return (needle == '\0') ? (char *)str : CLKS_NULL;
+}
+
+int abs(int value) {
+    return (value < 0) ? -value : value;
+}
+
+long labs(long value) {
+    return (value < 0L) ? -value : value;
+}

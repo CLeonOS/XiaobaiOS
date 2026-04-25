@@ -6,6 +6,7 @@ include("${CMAKE_SOURCE_DIR}/cmake/log.cmake")
 set(CL_LOG_EMIT_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/log_emit.cmake")
 
 set(CC "clang" CACHE STRING "Kernel C compiler")
+set(KERNEL_CXX "clang++" CACHE STRING "Kernel C++ compiler")
 set(LD "ld.lld" CACHE STRING "Kernel linker")
 set(USER_CC "clang" CACHE STRING "User-space C compiler")
 set(USER_LD "ld.lld" CACHE STRING "User-space linker")
@@ -108,6 +109,7 @@ set(CLKS_ARCH "x86_64" CACHE STRING "Target CLKS arch")
 set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/clks/arch/${CLKS_ARCH}/linker.ld")
 
 resolve_tool_with_fallback(CC clang gcc cc)
+resolve_tool_with_fallback(KERNEL_CXX clang++ g++ c++)
 resolve_tool_with_fallback(LD ld.lld ld)
 resolve_tool_with_fallback(USER_CC clang cc gcc)
 resolve_tool_with_fallback(USER_LD ld.lld ld)
@@ -154,6 +156,7 @@ endfunction()
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_AUDIO ON "Initialize kernel audio subsystem")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_MOUSE ON "Initialize kernel mouse subsystem")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_DESKTOP ON "Initialize desktop compositor subsystem")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_NET ON "Initialize kernel network subsystem")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_DRIVER_MANAGER ON "Initialize kernel driver manager")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_KELF ON "Enable KELF app dispatcher")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_USERLAND_AUTO_EXEC ON "Auto exec /shell/shell.elf on boot")
@@ -197,6 +200,7 @@ cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_SHELL_MODE_LOG ON "Print default shell m
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_AUDIO CLKS_CFG_AUDIO_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_MOUSE CLKS_CFG_MOUSE_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_DESKTOP CLKS_CFG_DESKTOP_INT)
+cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_NET CLKS_CFG_NET_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_DRIVER_MANAGER CLKS_CFG_DRIVER_MANAGER_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_KELF CLKS_CFG_KELF_INT)
 cl_bool_to_int(XIAOBAIOS_CLKS_ENABLE_USERLAND_AUTO_EXEC CLKS_CFG_USERLAND_AUTO_EXEC_INT)
@@ -250,6 +254,22 @@ set(CFLAGS_COMMON
     "-I${CMAKE_SOURCE_DIR}/clks/include"
 )
 
+set(CXXFLAGS_COMMON
+    -std=c++17
+    -ffreestanding
+    -fno-stack-protector
+    -fno-builtin
+    -fno-exceptions
+    -fno-rtti
+    -fno-threadsafe-statics
+    -fno-use-cxa-atexit
+    -g
+    -Wall
+    -Wextra
+    -Werror
+    "-I${CMAKE_SOURCE_DIR}/clks/include"
+)
+
 set(ARCH_CFLAGS
     -DCLKS_ARCH_X86_64=1
     -m64
@@ -270,6 +290,7 @@ endmacro()
 cl_append_bool_define(CLKS_CFG_AUDIO XIAOBAIOS_CLKS_ENABLE_AUDIO)
 cl_append_bool_define(CLKS_CFG_MOUSE XIAOBAIOS_CLKS_ENABLE_MOUSE)
 cl_append_bool_define(CLKS_CFG_DESKTOP XIAOBAIOS_CLKS_ENABLE_DESKTOP)
+cl_append_bool_define(CLKS_CFG_NET XIAOBAIOS_CLKS_ENABLE_NET)
 cl_append_bool_define(CLKS_CFG_DRIVER_MANAGER XIAOBAIOS_CLKS_ENABLE_DRIVER_MANAGER)
 cl_append_bool_define(CLKS_CFG_KELF XIAOBAIOS_CLKS_ENABLE_KELF)
 cl_append_bool_define(CLKS_CFG_USERLAND_AUTO_EXEC XIAOBAIOS_CLKS_ENABLE_USERLAND_AUTO_EXEC)
@@ -328,17 +349,24 @@ endif()
 set(KERNEL_SOURCE_DIRS
     "${CMAKE_SOURCE_DIR}/clks/kernel"
     "${CMAKE_SOURCE_DIR}/clks/arch/${CLKS_ARCH}"
+    "${CMAKE_SOURCE_DIR}/clks/third_party"
 )
 
 set(C_SOURCES)
+set(CPP_SOURCES)
 set(ASM_SOURCES)
 foreach(_src_dir IN LISTS KERNEL_SOURCE_DIRS)
     if(EXISTS "${_src_dir}")
         file(GLOB_RECURSE _c_abs CONFIGURE_DEPENDS "${_src_dir}/*.c")
+        file(GLOB_RECURSE _cpp_abs CONFIGURE_DEPENDS "${_src_dir}/*.cpp")
         file(GLOB_RECURSE _s_abs CONFIGURE_DEPENDS "${_src_dir}/*.S")
         foreach(_abs IN LISTS _c_abs)
             file(RELATIVE_PATH _rel "${CMAKE_SOURCE_DIR}" "${_abs}")
             list(APPEND C_SOURCES "${_rel}")
+        endforeach()
+        foreach(_abs IN LISTS _cpp_abs)
+            file(RELATIVE_PATH _rel "${CMAKE_SOURCE_DIR}" "${_abs}")
+            list(APPEND CPP_SOURCES "${_rel}")
         endforeach()
         foreach(_abs IN LISTS _s_abs)
             file(RELATIVE_PATH _rel "${CMAKE_SOURCE_DIR}" "${_abs}")
@@ -347,8 +375,10 @@ foreach(_src_dir IN LISTS KERNEL_SOURCE_DIRS)
     endif()
 endforeach()
 list(REMOVE_DUPLICATES C_SOURCES)
+list(REMOVE_DUPLICATES CPP_SOURCES)
 list(REMOVE_DUPLICATES ASM_SOURCES)
 list(SORT C_SOURCES)
+list(SORT CPP_SOURCES)
 list(SORT ASM_SOURCES)
 
 set(CLKS_BOOT_LIMINE_SOURCE "clks/kernel/boot/limine/limine_requests.c")
@@ -381,11 +411,40 @@ function(add_kernel_c_object SRC OUTPUT_LIST_VAR)
     set(OBJ_PATH "${OBJ_ROOT}/${OBJ_REL}")
     get_filename_component(OBJ_DIR "${OBJ_PATH}" DIRECTORY)
     set(_deps "${CMAKE_SOURCE_DIR}/${SRC}" ${KERNEL_INC_SOURCES_ABS})
+    set(_cflags ${CFLAGS_COMMON})
+
+    if("${SRC}" MATCHES "^clks/third_party/")
+        list(APPEND _cflags
+            -Wno-error
+            -Wno-unused-function
+            -Wno-unused-parameter
+            -Wno-sign-compare
+            -Wno-type-limits
+            -Wno-missing-field-initializers
+        )
+    endif()
 
     add_custom_command(
         OUTPUT "${OBJ_PATH}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${OBJ_DIR}"
-        COMMAND ${CC} ${CFLAGS_COMMON} ${ARCH_CFLAGS} -c "${CMAKE_SOURCE_DIR}/${SRC}" -o "${OBJ_PATH}"
+        COMMAND ${CC} ${_cflags} ${ARCH_CFLAGS} -c "${CMAKE_SOURCE_DIR}/${SRC}" -o "${OBJ_PATH}"
+        DEPENDS ${_deps}
+        VERBATIM
+    )
+
+    set(${OUTPUT_LIST_VAR} ${${OUTPUT_LIST_VAR}} "${OBJ_PATH}" PARENT_SCOPE)
+endfunction()
+
+function(add_kernel_cpp_object SRC OUTPUT_LIST_VAR)
+    string(REGEX REPLACE "\\.cpp$" ".o" OBJ_REL "${SRC}")
+    set(OBJ_PATH "${OBJ_ROOT}/${OBJ_REL}")
+    get_filename_component(OBJ_DIR "${OBJ_PATH}" DIRECTORY)
+    set(_deps "${CMAKE_SOURCE_DIR}/${SRC}" ${KERNEL_INC_SOURCES_ABS})
+
+    add_custom_command(
+        OUTPUT "${OBJ_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${OBJ_DIR}"
+        COMMAND ${KERNEL_CXX} ${CXXFLAGS_COMMON} ${ARCH_CFLAGS} -c "${CMAKE_SOURCE_DIR}/${SRC}" -o "${OBJ_PATH}"
         DEPENDS ${_deps}
         VERBATIM
     )
@@ -413,6 +472,9 @@ endfunction()
 set(KERNEL_OBJECTS)
 foreach(SRC IN LISTS C_SOURCES)
     add_kernel_c_object("${SRC}" KERNEL_OBJECTS)
+endforeach()
+foreach(SRC IN LISTS CPP_SOURCES)
+    add_kernel_cpp_object("${SRC}" KERNEL_OBJECTS)
 endforeach()
 foreach(SRC IN LISTS ASM_SOURCES)
     add_kernel_asm_object("${SRC}" KERNEL_OBJECTS)
@@ -796,6 +858,7 @@ add_custom_target(setup-tools
         "-DXORRISO_TOOL=${XORRISO}"
         "-DNO_COLOR=${NO_COLOR}"
         "-DCC_TOOL=${CC}"
+        "-DKERNEL_CXX_TOOL=${KERNEL_CXX}"
         "-DLD_TOOL=${LD}"
         "-DUSER_CC_TOOL=${USER_CC}"
         "-DUSER_LD_TOOL=${USER_LD}"

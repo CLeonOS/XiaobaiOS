@@ -16,6 +16,7 @@
 #include <clks/kernel.h>
 #include <clks/log.h>
 #include <clks/mouse.h>
+#include <clks/net.h>
 #include <clks/pmm.h>
 #include <clks/scheduler.h>
 #include <clks/serial.h>
@@ -25,6 +26,7 @@
 #include <clks/tty.h>
 #include <clks/types.h>
 #include <clks/userland.h>
+#include <clks/wm.h>
 
 #ifndef CLKS_CFG_AUDIO
 #define CLKS_CFG_AUDIO 1
@@ -36,6 +38,10 @@
 
 #ifndef CLKS_CFG_DESKTOP
 #define CLKS_CFG_DESKTOP 1
+#endif
+
+#ifndef CLKS_CFG_NET
+#define CLKS_CFG_NET 1
 #endif
 
 #ifndef CLKS_CFG_DRIVER_MANAGER
@@ -211,7 +217,11 @@ static void clks_task_usrd(u64 tick) {
     clks_userland_tick(tick);
 #endif
 #if CLKS_CFG_DESKTOP
-    clks_desktop_tick(tick);
+    if (clks_wm_ready() == CLKS_TRUE) {
+        clks_wm_tick(tick);
+    } else {
+        clks_desktop_tick(tick);
+    }
 #endif
     clks_tty_tick(tick);
     clks_shell_tick(tick);
@@ -367,6 +377,7 @@ void clks_kernel_main(void) {
 #endif
 #if CLKS_CFG_DESKTOP
     clks_desktop_init();
+    clks_wm_init();
 #else
     clks_log(CLKS_LOG_WARN, "CFG", "DESKTOP DISABLED BY MENUCONFIG");
 #endif
@@ -376,6 +387,13 @@ void clks_kernel_main(void) {
 #else
     clks_log(CLKS_LOG_WARN, "CFG", "DRIVER MANAGER DISABLED BY MENUCONFIG");
 #endif
+
+#if CLKS_CFG_NET
+    clks_net_init();
+#else
+    clks_log(CLKS_LOG_WARN, "CFG", "NETWORK DISABLED BY MENUCONFIG");
+#endif
+
 #if CLKS_CFG_KELF
     clks_kelf_init();
 #else
@@ -493,6 +511,9 @@ void clks_kernel_main(void) {
 #endif
 
     for (;;) {
+#if CLKS_CFG_NET
+        clks_net_poll();
+#endif
         u64 tick_now = clks_interrupts_timer_ticks();
         clks_scheduler_dispatch_current(tick_now);
 #if defined(CLKS_ARCH_X86_64)

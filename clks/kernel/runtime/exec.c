@@ -14,6 +14,11 @@
 typedef u64 (*clks_exec_entry_fn)(void);
 
 #define CLKS_EXEC_RUN_STACK_BYTES (1024ULL * 1024ULL)
+#define CLKS_EXEC_RUN_STACK_TIER_1 (768ULL * 1024ULL)
+#define CLKS_EXEC_RUN_STACK_TIER_2 (512ULL * 1024ULL)
+#define CLKS_EXEC_RUN_STACK_TIER_3 (256ULL * 1024ULL)
+#define CLKS_EXEC_RUN_STACK_TIER_4 (128ULL * 1024ULL)
+#define CLKS_EXEC_RUN_STACK_TIER_5 (64ULL * 1024ULL)
 #define CLKS_EXEC_MAX_PROCS 64U
 #define CLKS_EXEC_MAX_DEPTH 16U
 #define CLKS_EXEC_PATH_MAX 192U
@@ -1031,6 +1036,11 @@ static clks_bool clks_exec_fd_copy_from_parent(struct clks_exec_proc_record *chi
     }
 
     child->fds[(u32)child_fd] = *src;
+
+    if (child->fds[(u32)child_fd].kind == CLKS_EXEC_FD_KIND_TTY) {
+        child->fds[(u32)child_fd].tty_index = child->tty_index;
+    }
+
     return CLKS_TRUE;
 }
 
@@ -1314,18 +1324,39 @@ static clks_bool clks_exec_invoke_entry(void *entry_ptr, u32 depth_index, u64 *o
 
 #if defined(CLKS_ARCH_X86_64)
     {
-        void *stack_base = clks_kmalloc((usize)CLKS_EXEC_RUN_STACK_BYTES);
+        static const u64 clks_exec_stack_candidates[] = {
+            CLKS_EXEC_RUN_STACK_BYTES,  CLKS_EXEC_RUN_STACK_TIER_1, CLKS_EXEC_RUN_STACK_TIER_2,
+            CLKS_EXEC_RUN_STACK_TIER_3, CLKS_EXEC_RUN_STACK_TIER_4, CLKS_EXEC_RUN_STACK_TIER_5,
+        };
+        void *stack_base = CLKS_NULL;
         void *stack_top;
+        u64 stack_bytes = 0ULL;
         u64 unwind_slot;
         u64 call_ret = (u64)-1;
         clks_bool restore_irq_disable = CLKS_FALSE;
+        u32 candidate_index;
+
+        for (candidate_index = 0U;
+             candidate_index < (u32)(sizeof(clks_exec_stack_candidates) / sizeof(clks_exec_stack_candidates[0]));
+             candidate_index++) {
+            stack_bytes = clks_exec_stack_candidates[candidate_index];
+            stack_base = clks_kmalloc((usize)stack_bytes);
+            if (stack_base != CLKS_NULL) {
+                break;
+            }
+        }
 
         if (stack_base == CLKS_NULL) {
             clks_log(CLKS_LOG_WARN, "EXEC", "RUN STACK ALLOC FAILED");
             return CLKS_FALSE;
         }
 
-        stack_top = (void *)((u8 *)stack_base + (usize)CLKS_EXEC_RUN_STACK_BYTES);
+        if (stack_bytes != CLKS_EXEC_RUN_STACK_BYTES) {
+            clks_log(CLKS_LOG_WARN, "EXEC", "RUN STACK FALLBACK");
+            clks_exec_log_hex_serial("STACK_BYTES", stack_bytes);
+        }
+
+        stack_top = (void *)((u8 *)stack_base + (usize)stack_bytes);
         clks_exec_stack_begin_stack[depth_index] = (u64)stack_base;
         clks_exec_stack_end_stack[depth_index] = (u64)stack_top;
         unwind_slot = (((u64)stack_top) & ~0xFULL) - CLKS_EXEC_UNWIND_CTX_BYTES;
@@ -1974,7 +2005,7 @@ u64 clks_exec_fd_write(u64 fd, const void *buffer, u64 size) {
     }
 
     if (entry->kind == CLKS_EXEC_FD_KIND_TTY) {
-        clks_tty_write_n((const char *)buffer, (usize)size);
+        clks_tty_write_n_to(entry->tty_index, (const char *)buffer, (usize)size);
         return size;
     }
 

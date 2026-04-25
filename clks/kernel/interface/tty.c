@@ -1331,6 +1331,46 @@ void clks_tty_write_n(const char *text, usize len) {
     }
 }
 
+void clks_tty_write_n_to(u32 tty_index, const char *text, usize len) {
+    usize i = 0U;
+    clks_bool target_active;
+
+    if (clks_tty_is_ready == CLKS_FALSE || text == CLKS_NULL || len == 0U) {
+        return;
+    }
+
+    if (tty_index >= CLKS_TTY_COUNT) {
+        tty_index = clks_tty_active_index;
+    }
+
+    target_active = (tty_index == clks_tty_active_index) ? CLKS_TRUE : CLKS_FALSE;
+
+    if (target_active == CLKS_TRUE) {
+        clks_tty_begin_batch();
+
+        if (clks_tty_scrollback_is_active(tty_index) == CLKS_TRUE) {
+            clks_tty_scrollback_follow_tail(tty_index);
+            clks_tty_redraw_active();
+        }
+    }
+
+    while (i < len) {
+        if (clks_tty_ansi_process_byte(tty_index, text[i]) == CLKS_FALSE) {
+            clks_tty_put_char_raw(tty_index, text[i]);
+        }
+
+        i++;
+    }
+
+    if (target_active == CLKS_TRUE) {
+        clks_tty_end_batch();
+
+        if (clks_tty_batch_depth == 0U) {
+            clks_tty_force_render();
+        }
+    }
+}
+
 void clks_tty_write(const char *text) {
     if (text == CLKS_NULL) {
         return;

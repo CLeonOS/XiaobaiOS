@@ -415,3 +415,87 @@ u64 cleonos_sys_disk_read_sector(u64 lba, void *out_sector) {
 u64 cleonos_sys_disk_write_sector(u64 lba, const void *sector_data) {
     return cleonos_syscall(CLEONOS_SYSCALL_DISK_WRITE_SECTOR, lba, (u64)sector_data, 0ULL);
 }
+
+u64 cleonos_sys_net_available(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_AVAILABLE, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_ipv4_addr(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_IPV4_ADDR, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_ping(u64 dst_ipv4_be, u64 poll_budget) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_PING, dst_ipv4_be, poll_budget, 0ULL);
+}
+
+u64 cleonos_sys_net_udp_send(const cleonos_net_udp_send_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_UDP_SEND, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_udp_recv(const cleonos_net_udp_recv_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_UDP_RECV, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_netmask(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_NETMASK, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_gateway(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_GATEWAY, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_dns_server(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_DNS_SERVER, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_tcp_connect(const cleonos_net_tcp_connect_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_CONNECT, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_tcp_send(const cleonos_net_tcp_send_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_SEND, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_tcp_recv(const cleonos_net_tcp_recv_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_RECV, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_tcp_close(u64 poll_budget) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_CLOSE, poll_budget, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_mouse_state(cleonos_mouse_state *out_state) {
+    return cleonos_syscall(CLEONOS_SYSCALL_MOUSE_STATE, (u64)out_state, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_wm_create(const cleonos_wm_create_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_CREATE, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_wm_destroy(u64 window_id) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_DESTROY, window_id, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_wm_present(const cleonos_wm_present_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_PRESENT, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_wm_poll_event(u64 window_id, cleonos_wm_event *out_event) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_POLL_EVENT, window_id, (u64)out_event, 0ULL);
+}
+
+u64 cleonos_sys_wm_move(const cleonos_wm_move_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_MOVE, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_wm_set_focus(u64 window_id) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_SET_FOCUS, window_id, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_wm_set_flags(u64 window_id, u64 flags) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_SET_FLAGS, window_id, flags, 0ULL);
+}
+
+u64 cleonos_sys_wm_resize(const cleonos_wm_resize_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_RESIZE, (u64)req, 0ULL, 0ULL);
+}

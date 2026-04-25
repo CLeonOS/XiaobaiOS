@@ -6,6 +6,7 @@
 void clks_tty_init(void);
 void clks_tty_write(const char *text);
 void clks_tty_write_n(const char *text, usize len);
+void clks_tty_write_n_to(u32 tty_index, const char *text, usize len);
 void clks_tty_write_char(char ch);
 void clks_tty_batch_begin(void);
 void clks_tty_batch_end(void);

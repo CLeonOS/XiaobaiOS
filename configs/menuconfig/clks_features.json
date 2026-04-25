@@ -23,6 +23,13 @@
       "depends_on": "CLEONOS_CLKS_ENABLE_MOUSE"
     },
     {
+      "key": "CLEONOS_CLKS_ENABLE_NET",
+      "title": "Network Stack",
+      "description": "Initialize kernel networking and enable network syscalls.",
+      "type": "bool",
+      "default": true
+    },
+    {
       "key": "CLEONOS_CLKS_ENABLE_DRIVER_MANAGER",
       "title": "Driver Manager",
       "description": "Initialize kernel ELF driver manager.",
