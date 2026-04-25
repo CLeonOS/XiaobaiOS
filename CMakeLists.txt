@@ -247,6 +247,12 @@ set(CFLAGS_COMMON
     -fno-stack-protector
     -fno-builtin
     -mgeneral-regs-only
+    -O2
+    -ffunction-sections
+    -fdata-sections
+    -fno-unwind-tables
+    -fno-asynchronous-unwind-tables
+    -fno-omit-frame-pointer
     -g
     -Wall
     -Wextra
@@ -263,6 +269,12 @@ set(CXXFLAGS_COMMON
     -fno-rtti
     -fno-threadsafe-statics
     -fno-use-cxa-atexit
+    -O2
+    -ffunction-sections
+    -fdata-sections
+    -fno-unwind-tables
+    -fno-asynchronous-unwind-tables
+    -fno-omit-frame-pointer
     -g
     -Wall
     -Wextra
@@ -338,6 +350,7 @@ set(ASFLAGS_COMMON
 
 set(LDFLAGS_COMMON
     -nostdlib
+    --gc-sections
     -z
     max-page-size=0x1000
 )
@@ -562,6 +575,12 @@ set(XIAOBAIOS_USER_CFLAGS
     -fno-stack-protector
     -fno-builtin
     -mgeneral-regs-only
+    -O2
+    -ffunction-sections
+    -fdata-sections
+    -fno-unwind-tables
+    -fno-asynchronous-unwind-tables
+    -fno-omit-frame-pointer
     -Wall
     -Wextra
     -Werror
@@ -574,6 +593,12 @@ set(XIAOBAIOS_USER_KMAIN_CFLAGS
     -fno-stack-protector
     -fno-builtin
     -mgeneral-regs-only
+    -O2
+    -ffunction-sections
+    -fdata-sections
+    -fno-unwind-tables
+    -fno-asynchronous-unwind-tables
+    -fno-omit-frame-pointer
     -Wall
     -Wextra
     -Werror
@@ -582,6 +607,7 @@ set(XIAOBAIOS_USER_KMAIN_CFLAGS
 
 set(XIAOBAIOS_USER_LDFLAGS
     -nostdlib
+    --gc-sections
     -z
     max-page-size=0x1000
     -T
@@ -590,6 +616,7 @@ set(XIAOBAIOS_USER_LDFLAGS
 
 set(XIAOBAIOS_USER_KELF_LDFLAGS
     -nostdlib
+    --gc-sections
     -z
     max-page-size=0x1000
     -T
