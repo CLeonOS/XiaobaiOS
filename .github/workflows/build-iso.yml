@@ -77,17 +77,20 @@ jobs:
             make iso
           fi
 
-      - name: 输出产物信息
+      - name: 整理产物名称
         run: |
-          ls -lh build/XiaoBaiOS-x86_64.iso
-          sha256sum build/XiaoBaiOS-x86_64.iso | tee build/XiaoBaiOS-x86_64.iso.sha256
+          short_commit="$(git rev-parse --short=7 HEAD)"
+          iso_name="XiaoBaiOS-x86_64-${short_commit}.iso"
+          cp build/XiaoBaiOS-x86_64.iso "build/${iso_name}"
+          sha256sum "build/${iso_name}" | tee "build/${iso_name}.sha256"
+          ls -lh "build/${iso_name}" "build/${iso_name}.sha256"
 
       - name: 上传 ISO 产物
         uses: actions/upload-artifact@v4
         with:
           name: XiaoBaiOS-x86_64-iso
           path: |
-            build/XiaoBaiOS-x86_64.iso
-            build/XiaoBaiOS-x86_64.iso.sha256
+            build/XiaoBaiOS-x86_64-*.iso
+            build/XiaoBaiOS-x86_64-*.iso.sha256
           if-no-files-found: error
           retention-days: 14
