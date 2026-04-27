@@ -54,6 +54,7 @@ jobs:
             curl \
             gawk \
             git \
+            imagemagick \
             lld \
             llvm \
             mtools \
