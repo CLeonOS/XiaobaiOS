@@ -2,3 +2,6 @@
 	path = limine
 	url = https://github.com/Limine-Bootloader/Limine.git
 	branch = v11.x
+[submodule "clks"]
+	path = clks
+	url = https://github.com/CLeonOS/clks.git

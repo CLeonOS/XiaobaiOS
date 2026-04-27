@@ -6,6 +6,10 @@ typedef unsigned long clio_size_t;
 
 #define CLIO_SINK_FD 1
 #define CLIO_SINK_BUF 2
+#define CLIO_CAPTURE_PATH_MAX 192UL
+
+static char clio_capture_path[CLIO_CAPTURE_PATH_MAX];
+static int clio_capture_enabled;
 
 struct clio_sink {
     int mode;
@@ -30,12 +34,58 @@ static clio_size_t clio_strlen(const char *text) {
     return len;
 }
 
+static int clio_has_prefix(const char *text, const char *prefix) {
+    clio_size_t i = 0UL;
+
+    if (text == (const char *)0 || prefix == (const char *)0) {
+        return 0;
+    }
+
+    while (prefix[i] != '\0') {
+        if (text[i] != prefix[i]) {
+            return 0;
+        }
+        i++;
+    }
+
+    return 1;
+}
+
+static void clio_copy_capture_path(const char *path) {
+    clio_size_t i = 0UL;
+
+    clio_capture_path[0] = '\0';
+    clio_capture_enabled = 0;
+
+    if (path == (const char *)0 || path[0] != '/') {
+        return;
+    }
+
+    while (path[i] != '\0' && i + 1UL < CLIO_CAPTURE_PATH_MAX) {
+        clio_capture_path[i] = path[i];
+        i++;
+    }
+    clio_capture_path[i] = '\0';
+    clio_capture_enabled = (i > 0UL) ? 1 : 0;
+}
+
 static int clio_write_all_fd(int fd, const char *text, clio_size_t len) {
     const char *cursor = text;
     clio_size_t left = len;
 
     if (fd < 0 || (text == (const char *)0 && len != 0UL)) {
         return EOF;
+    }
+
+    if ((fd == 1 || fd == 2) && clio_capture_enabled != 0 && clio_capture_path[0] == '/') {
+        u64 wrote = cleonos_sys_fs_append(clio_capture_path, text, (u64)len);
+        if (wrote == 0ULL && len != 0UL) {
+            return EOF;
+        }
+        if (len > 0x7FFFFFFFUL) {
+            return 0x7FFFFFFF;
+        }
+        return (int)len;
     }
 
     while (left > 0UL) {
@@ -56,6 +106,26 @@ static int clio_write_all_fd(int fd, const char *text, clio_size_t len) {
     }
 
     return (int)len;
+}
+
+void cleonos_stdio_configure(char **envp) {
+    u64 i = 0ULL;
+
+    clio_capture_path[0] = '\0';
+    clio_capture_enabled = 0;
+
+    if (envp == (char **)0) {
+        return;
+    }
+
+    while (envp[i] != (char *)0) {
+        const char *entry = envp[i];
+        if (clio_has_prefix(entry, "XDE_CAPTURE_PATH=") != 0) {
+            clio_copy_capture_path(entry + 17UL);
+            return;
+        }
+        i++;
+    }
 }
 
 static void clio_sink_init_fd(struct clio_sink *sink, int fd) {

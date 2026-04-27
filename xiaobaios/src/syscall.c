@@ -131,10 +131,6 @@ u64 cleonos_sys_tty_write_char(char ch) {
     return cleonos_syscall(CLEONOS_SYSCALL_TTY_WRITE_CHAR, (u64)(unsigned char)ch, 0ULL, 0ULL);
 }
 
-u64 cleonos_sys_tty_batch(u64 enable) {
-    return cleonos_syscall(CLEONOS_SYSCALL_TTY_BATCH, enable, 0ULL, 0ULL);
-}
-
 u64 cleonos_sys_kbd_get_char(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_KBD_GET_CHAR, 0ULL, 0ULL, 0ULL);
 }
@@ -424,18 +420,6 @@ u64 cleonos_sys_net_ipv4_addr(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_NET_IPV4_ADDR, 0ULL, 0ULL, 0ULL);
 }
 
-u64 cleonos_sys_net_ping(u64 dst_ipv4_be, u64 poll_budget) {
-    return cleonos_syscall(CLEONOS_SYSCALL_NET_PING, dst_ipv4_be, poll_budget, 0ULL);
-}
-
-u64 cleonos_sys_net_udp_send(const cleonos_net_udp_send_req *req) {
-    return cleonos_syscall(CLEONOS_SYSCALL_NET_UDP_SEND, (u64)req, 0ULL, 0ULL);
-}
-
-u64 cleonos_sys_net_udp_recv(const cleonos_net_udp_recv_req *req) {
-    return cleonos_syscall(CLEONOS_SYSCALL_NET_UDP_RECV, (u64)req, 0ULL, 0ULL);
-}
-
 u64 cleonos_sys_net_netmask(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_NET_NETMASK, 0ULL, 0ULL, 0ULL);
 }
@@ -448,6 +432,18 @@ u64 cleonos_sys_net_dns_server(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_NET_DNS_SERVER, 0ULL, 0ULL, 0ULL);
 }
 
+u64 cleonos_sys_net_ping(u64 dst_ipv4_be, u64 poll_budget) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_PING, dst_ipv4_be, poll_budget, 0ULL);
+}
+
+u64 cleonos_sys_net_udp_send(const cleonos_net_udp_send_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_UDP_SEND, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_udp_recv(cleonos_net_udp_recv_req *req) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_UDP_RECV, (u64)req, 0ULL, 0ULL);
+}
+
 u64 cleonos_sys_net_tcp_connect(const cleonos_net_tcp_connect_req *req) {
     return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_CONNECT, (u64)req, 0ULL, 0ULL);
 }
@@ -456,7 +452,7 @@ u64 cleonos_sys_net_tcp_send(const cleonos_net_tcp_send_req *req) {
     return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_SEND, (u64)req, 0ULL, 0ULL);
 }
 
-u64 cleonos_sys_net_tcp_recv(const cleonos_net_tcp_recv_req *req) {
+u64 cleonos_sys_net_tcp_recv(cleonos_net_tcp_recv_req *req) {
     return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_RECV, (u64)req, 0ULL, 0ULL);
 }
 
@@ -498,4 +494,20 @@ u64 cleonos_sys_wm_set_flags(u64 window_id, u64 flags) {
 
 u64 cleonos_sys_wm_resize(const cleonos_wm_resize_req *req) {
     return cleonos_syscall(CLEONOS_SYSCALL_WM_RESIZE, (u64)req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_wm_count(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_COUNT, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_wm_id_at(u64 index, u64 *out_window_id) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_ID_AT, index, (u64)out_window_id, 0ULL);
+}
+
+u64 cleonos_sys_wm_snapshot(u64 window_id, cleonos_wm_snapshot *out_snapshot, u64 out_size) {
+    return cleonos_syscall(CLEONOS_SYSCALL_WM_SNAPSHOT, window_id, (u64)out_snapshot, out_size);
+}
+
+u64 cleonos_sys_pty_open(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_PTY_OPEN, 0ULL, 0ULL, 0ULL);
 }

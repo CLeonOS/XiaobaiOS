@@ -138,7 +138,7 @@ static int xsh_write_ret(const ush_state *sh) {
 }
 
 static int xsh_run_external(const ush_state *sh, const char *cmd, const char *arg, const char *path_env,
-                            u64 *out_status) {
+                            int inherit_stdio, u64 *out_status) {
     char full_path[XSH_PATH_MAX];
     char ctx_cmd[XSH_CMD_MAX];
     char argv_line[XSH_LINE_MAX];
@@ -219,7 +219,11 @@ static int xsh_run_external(const ush_state *sh, const char *cmd, const char *ar
         xsh_copy(env_line, (u64)sizeof(env_line), "PATH=/shell");
     }
 
-    status = cleonos_sys_exec_pathv(full_path, argv_line, env_line);
+    if (inherit_stdio != 0) {
+        status = cleonos_sys_exec_pathv_io(full_path, argv_line, env_line, 0ULL, 1ULL, 2ULL);
+    } else {
+        status = cleonos_sys_exec_pathv(full_path, argv_line, env_line);
+    }
     (void)cleonos_sys_fs_remove(USH_CMD_CTX_PATH);
     if (status == (u64)-1) {
         return 0;
@@ -250,8 +254,9 @@ static void xsh_prompt(const ush_state *sh) {
     ush_write((sh->uid == 0ULL) ? "# " : "$ ");
 }
 
-static int xsh_read_line(char *out, u64 out_size) {
+static int xsh_read_line(char *out, u64 out_size, int echo_input) {
     u64 len = 0ULL;
+    u64 idle_reads = 0ULL;
 
     if (out == (char *)0 || out_size < 2ULL) {
         return 0;
@@ -260,11 +265,25 @@ static int xsh_read_line(char *out, u64 out_size) {
     out[0] = '\0';
 
     for (;;) {
-        u64 ch = cleonos_sys_kbd_get_char();
+        int input = getchar();
+        u64 ch;
 
-        if (ch == 0ULL || ch == (u64)-1) {
+        if (input == EOF) {
+            if (echo_input == 0) {
+                out[len] = '\0';
+                return (len > 0ULL) ? 1 : 0;
+            }
+
+            idle_reads++;
+            if (idle_reads > 2048ULL) {
+                out[len] = '\0';
+                return (len > 0ULL) ? 1 : 0;
+            }
             continue;
         }
+
+        idle_reads = 0ULL;
+        ch = (u64)(unsigned char)input;
 
         if ((char)ch == '\r') {
             continue;
@@ -272,23 +291,56 @@ static int xsh_read_line(char *out, u64 out_size) {
 
         if ((char)ch == '\n') {
             out[len] = '\0';
-            ush_write_char('\n');
+            if (echo_input != 0) {
+                ush_write_char('\n');
+            }
             return 1;
         }
 
         if ((char)ch == '\b') {
             if (len > 0ULL) {
                 len--;
-                ush_write("\b \b");
+                if (echo_input != 0) {
+                    ush_write("\b \b");
+                }
             }
             continue;
         }
 
         if (isprint((unsigned char)ch) != 0 && len + 1ULL < out_size) {
             out[len++] = (char)ch;
-            ush_write_char((char)ch);
+            if (echo_input != 0) {
+                ush_write_char((char)ch);
+            }
         }
     }
+}
+
+static int xsh_build_batch_line(int argc, char **argv, char *out, u64 out_size) {
+    int i;
+    u64 len = 0ULL;
+
+    if (argc <= 1 || argv == (char **)0 || out == (char *)0 || out_size == 0ULL) {
+        return 0;
+    }
+
+    out[0] = '\0';
+    for (i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+        u64 j = 0ULL;
+
+        if (arg == (const char *)0) {
+            continue;
+        }
+        if (len != 0ULL && len + 1ULL < out_size) {
+            out[len++] = ' ';
+        }
+        while (arg[j] != '\0' && len + 1ULL < out_size) {
+            out[len++] = arg[j++];
+        }
+    }
+    out[len] = '\0';
+    return (len > 0ULL) ? 1 : 0;
 }
 
 int cleonos_app_main(int argc, char **argv, char **envp) {
@@ -302,10 +354,8 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
     const char *path_env;
     int has_context = 0;
     int exit_requested = 0;
+    int batch_mode = 0;
     u64 exit_code = 0ULL;
-
-    (void)argc;
-    (void)argv;
 
     ush_init_state(&sh);
     if (ush_command_bootstrap_state("xsh", &ctx, &sh, initial_cwd, (u64)sizeof(initial_cwd), &has_context) == 0) {
@@ -317,18 +367,29 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
         xsh_copy(path_env_buf, (u64)sizeof(path_env_buf), "/shell");
         path_env = path_env_buf;
     }
+    if (xsh_env_lookup(envp, "XSH_BATCH") != (const char *)0) {
+        batch_mode = 1;
+    }
 
     if (has_context != 0) {
         (void)xsh_write_ret(&sh);
     }
 
-    ush_writeln("xsh: external-commands-only shell");
+    if (batch_mode == 0) {
+        ush_writeln("xsh: external-commands-only shell");
+    }
 
     for (;;) {
         u64 status;
 
-        xsh_prompt(&sh);
-        if (xsh_read_line(line, (u64)sizeof(line)) == 0) {
+        if (batch_mode == 0) {
+            xsh_prompt(&sh);
+        }
+        if (batch_mode != 0 && xsh_build_batch_line(argc, argv, line, (u64)sizeof(line)) != 0) {
+        } else if (xsh_read_line(line, (u64)sizeof(line), batch_mode == 0) == 0) {
+            if (batch_mode != 0) {
+                break;
+            }
             continue;
         }
 
@@ -339,7 +400,7 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
 
         ush_parse_line(line, cmd, (u64)sizeof(cmd), arg, (u64)sizeof(arg));
 
-        if (xsh_run_external(&sh, cmd, arg, path_env, &status) == 0) {
+        if (xsh_run_external(&sh, cmd, arg, path_env, batch_mode, &status) == 0) {
             ush_write("xsh: command not found: ");
             ush_writeln(cmd);
             continue;
@@ -371,6 +432,10 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             if (has_context != 0) {
                 (void)xsh_write_ret(&sh);
             }
+        }
+
+        if (batch_mode != 0 && argc > 1 && argv != (char **)0 && argv[1] != (char *)0) {
+            break;
         }
     }
 

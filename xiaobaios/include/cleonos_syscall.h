@@ -50,6 +50,71 @@ typedef struct cleonos_fb_info {
     u64 bpp;
 } cleonos_fb_info;
 
+typedef struct cleonos_mouse_state {
+    u64 x;
+    u64 y;
+    u64 buttons;
+    u64 packet_count;
+    u64 ready;
+} cleonos_mouse_state;
+
+#define CLEONOS_WM_EVENT_FOCUS_GAINED 1ULL
+#define CLEONOS_WM_EVENT_FOCUS_LOST 2ULL
+#define CLEONOS_WM_EVENT_KEY 3ULL
+#define CLEONOS_WM_EVENT_MOUSE_MOVE 4ULL
+#define CLEONOS_WM_EVENT_MOUSE_BUTTON 5ULL
+
+#define CLEONOS_WM_FLAG_TOPMOST 0x1ULL
+
+typedef struct cleonos_wm_event {
+    u64 type;
+    u64 arg0;
+    u64 arg1;
+    u64 arg2;
+    u64 arg3;
+} cleonos_wm_event;
+
+typedef struct cleonos_wm_snapshot {
+    u64 window_id;
+    u64 owner_pid;
+    u64 flags;
+    u64 x;
+    u64 y;
+    u64 width;
+    u64 height;
+    u64 focused;
+    u64 presented;
+    u64 event_count;
+} cleonos_wm_snapshot;
+
+typedef struct cleonos_wm_create_req {
+    u64 x;
+    u64 y;
+    u64 width;
+    u64 height;
+    u64 flags;
+} cleonos_wm_create_req;
+
+typedef struct cleonos_wm_present_req {
+    u64 window_id;
+    u64 pixels_ptr;
+    u64 src_width;
+    u64 src_height;
+    u64 src_pitch_bytes;
+} cleonos_wm_present_req;
+
+typedef struct cleonos_wm_move_req {
+    u64 window_id;
+    u64 x;
+    u64 y;
+} cleonos_wm_move_req;
+
+typedef struct cleonos_wm_resize_req {
+    u64 window_id;
+    u64 width;
+    u64 height;
+} cleonos_wm_resize_req;
+
 typedef struct cleonos_fb_blit_req {
     u64 pixels_ptr;
     u64 src_width;
@@ -94,50 +159,6 @@ typedef struct cleonos_net_tcp_recv_req {
     u64 payload_capacity;
     u64 poll_budget;
 } cleonos_net_tcp_recv_req;
-
-typedef struct cleonos_mouse_state {
-    u64 x;
-    u64 y;
-    u64 buttons;
-    u64 packet_count;
-    u64 ready;
-} cleonos_mouse_state;
-
-typedef struct cleonos_wm_event {
-    u64 type;
-    u64 arg0;
-    u64 arg1;
-    u64 arg2;
-    u64 arg3;
-} cleonos_wm_event;
-
-typedef struct cleonos_wm_create_req {
-    u64 x;
-    u64 y;
-    u64 width;
-    u64 height;
-    u64 flags;
-} cleonos_wm_create_req;
-
-typedef struct cleonos_wm_present_req {
-    u64 window_id;
-    u64 pixels_ptr;
-    u64 src_width;
-    u64 src_height;
-    u64 src_pitch_bytes;
-} cleonos_wm_present_req;
-
-typedef struct cleonos_wm_move_req {
-    u64 window_id;
-    u64 x;
-    u64 y;
-} cleonos_wm_move_req;
-
-typedef struct cleonos_wm_resize_req {
-    u64 window_id;
-    u64 width;
-    u64 height;
-} cleonos_wm_resize_req;
 
 #define CLEONOS_SYSCALL_LOG_WRITE 0ULL
 #define CLEONOS_SYSCALL_TIMER_TICKS 1ULL
@@ -255,7 +276,10 @@ typedef struct cleonos_wm_resize_req {
 #define CLEONOS_SYSCALL_WM_SET_FOCUS 113ULL
 #define CLEONOS_SYSCALL_WM_SET_FLAGS 114ULL
 #define CLEONOS_SYSCALL_WM_RESIZE 115ULL
-#define CLEONOS_SYSCALL_TTY_BATCH 116ULL
+#define CLEONOS_SYSCALL_PTY_OPEN 116ULL
+#define CLEONOS_SYSCALL_WM_COUNT 117ULL
+#define CLEONOS_SYSCALL_WM_ID_AT 118ULL
+#define CLEONOS_SYSCALL_WM_SNAPSHOT 119ULL
 
 u64 cleonos_syscall(u64 id, u64 arg0, u64 arg1, u64 arg2);
 u64 cleonos_sys_log_write(const char *message, u64 length);
@@ -286,7 +310,6 @@ u64 cleonos_sys_tty_active(void);
 u64 cleonos_sys_tty_switch(u64 tty_index);
 u64 cleonos_sys_tty_write(const char *text, u64 length);
 u64 cleonos_sys_tty_write_char(char ch);
-u64 cleonos_sys_tty_batch(u64 enable);
 u64 cleonos_sys_kbd_get_char(void);
 u64 cleonos_sys_fs_stat_type(const char *path);
 u64 cleonos_sys_fs_stat_size(const char *path);
@@ -356,15 +379,15 @@ u64 cleonos_sys_disk_read_sector(u64 lba, void *out_sector);
 u64 cleonos_sys_disk_write_sector(u64 lba, const void *sector_data);
 u64 cleonos_sys_net_available(void);
 u64 cleonos_sys_net_ipv4_addr(void);
-u64 cleonos_sys_net_ping(u64 dst_ipv4_be, u64 poll_budget);
-u64 cleonos_sys_net_udp_send(const cleonos_net_udp_send_req *req);
-u64 cleonos_sys_net_udp_recv(const cleonos_net_udp_recv_req *req);
 u64 cleonos_sys_net_netmask(void);
 u64 cleonos_sys_net_gateway(void);
 u64 cleonos_sys_net_dns_server(void);
+u64 cleonos_sys_net_ping(u64 dst_ipv4_be, u64 poll_budget);
+u64 cleonos_sys_net_udp_send(const cleonos_net_udp_send_req *req);
+u64 cleonos_sys_net_udp_recv(cleonos_net_udp_recv_req *req);
 u64 cleonos_sys_net_tcp_connect(const cleonos_net_tcp_connect_req *req);
 u64 cleonos_sys_net_tcp_send(const cleonos_net_tcp_send_req *req);
-u64 cleonos_sys_net_tcp_recv(const cleonos_net_tcp_recv_req *req);
+u64 cleonos_sys_net_tcp_recv(cleonos_net_tcp_recv_req *req);
 u64 cleonos_sys_net_tcp_close(u64 poll_budget);
 u64 cleonos_sys_mouse_state(cleonos_mouse_state *out_state);
 u64 cleonos_sys_wm_create(const cleonos_wm_create_req *req);
@@ -375,5 +398,9 @@ u64 cleonos_sys_wm_move(const cleonos_wm_move_req *req);
 u64 cleonos_sys_wm_set_focus(u64 window_id);
 u64 cleonos_sys_wm_set_flags(u64 window_id, u64 flags);
 u64 cleonos_sys_wm_resize(const cleonos_wm_resize_req *req);
+u64 cleonos_sys_wm_count(void);
+u64 cleonos_sys_wm_id_at(u64 index, u64 *out_window_id);
+u64 cleonos_sys_wm_snapshot(u64 window_id, cleonos_wm_snapshot *out_snapshot, u64 out_size);
+u64 cleonos_sys_pty_open(void);
 
 #endif

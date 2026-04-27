@@ -24,4 +24,6 @@ int fprintf(int fd, const char *fmt, ...);
 int vprintf(const char *fmt, va_list args);
 int printf(const char *fmt, ...);
 
+void cleonos_stdio_configure(char **envp);
+
 #endif

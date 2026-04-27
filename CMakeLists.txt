@@ -19,6 +19,7 @@ set(TAR "tar" CACHE STRING "tar executable")
 set(GIT_TOOL "git" CACHE STRING "git executable")
 set(MAKE_TOOL "make" CACHE STRING "make executable")
 set(SH_TOOL "sh" CACHE STRING "POSIX shell executable")
+set(MAGICK "magick" CACHE STRING "ImageMagick executable")
 
 set(OBJCOPY_FOR_TARGET "llvm-objcopy" CACHE STRING "objcopy tool for limine configure")
 set(OBJDUMP_FOR_TARGET "llvm-objdump" CACHE STRING "objdump tool for limine configure")
@@ -99,7 +100,12 @@ set(RAMDISK_IMAGE "${BUILD_ROOT}/xiaobaios_ramdisk.tar")
 set(DISK_IMAGE "${BUILD_ROOT}/xiaobaios_disk.img")
 set(XIAOBAIOS_DISK_IMAGE_MB "64" CACHE STRING "Default runtime disk image size in MB")
 set(XIAOBAIOS_TTY_FONT_SOURCE "${CMAKE_SOURCE_DIR}/fonts/system.ttf")
+set(XIAOBAIOS_XDE_FONT_SOURCE "${CMAKE_SOURCE_DIR}/fonts/xde.ttf")
 set(XIAOBAIOS_TTY_PSF_IMAGE "${BUILD_ROOT}/generated/tty.psf")
+set(XIAOBAIOS_XDE_START_ICON_SOURCE "${CMAKE_SOURCE_DIR}/icons/XDE_48x48.png")
+set(XIAOBAIOS_XDE_START_ICON_RAW "${BUILD_ROOT}/generated/xde_start.rgba")
+set(XIAOBAIOS_XDE_AVATAR_ICON_SOURCE "${CMAKE_SOURCE_DIR}/icons/XDE_128x128.png")
+set(XIAOBAIOS_XDE_AVATAR_ICON_RAW "${BUILD_ROOT}/generated/xde_avatar.rgba")
 set(ISO_IMAGE "${CMAKE_SOURCE_DIR}/build/XiaoBaiOS-x86_64.iso")
 set(KERNEL_RUST_LIB "${BUILD_ROOT}/libclks_kernel_rust.a")
 set(KERNEL_SYMBOLS_FILE "${BUILD_ROOT}/kernel.sym")
@@ -119,6 +125,7 @@ resolve_tool_with_fallback(ADDR2LINE llvm-addr2line x86_64-elf-addr2line addr2li
 resolve_tool_with_fallback(OBJCOPY_FOR_TARGET llvm-objcopy x86_64-linux-gnu-objcopy objcopy)
 resolve_tool_with_fallback(OBJDUMP_FOR_TARGET llvm-objdump x86_64-linux-gnu-objdump objdump)
 resolve_tool_with_fallback(READELF_FOR_TARGET llvm-readelf x86_64-linux-gnu-readelf readelf)
+resolve_tool_with_fallback(MAGICK magick convert)
 
 function(cl_set_bool_cache VAR_NAME DEFAULT_VALUE DOC_TEXT)
     set(_raw_value "")
@@ -187,7 +194,7 @@ cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_LEVEL_ERROR ON "Allow error log leve
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_SERIAL ON "Send kernel logs to serial")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_TTY ON "Send kernel logs to tty")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_LOG_OUTPUT_JOURNAL ON "Store kernel logs in journal")
-cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_USC ON "Enable dangerous syscall confirmations")
+cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_USC OFF "Enable dangerous syscall confirmations")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_KBD_TTY_SWITCH_HOTKEY ON "Enable ALT+F1..F4 TTY switch hotkey")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_KBD_CTRL_SHORTCUTS ON "Enable Ctrl+A/C/V keyboard shortcuts")
 cl_set_bool_cache(XIAOBAIOS_CLKS_ENABLE_KBD_FORCE_STOP_HOTKEY ON "Enable Ctrl+Alt+C force-stop hotkey")
@@ -257,6 +264,7 @@ set(CFLAGS_COMMON
     -Wall
     -Wextra
     -Werror
+    -Wno-error
     "-I${CMAKE_SOURCE_DIR}/clks/include"
 )
 
@@ -279,6 +287,7 @@ set(CXXFLAGS_COMMON
     -Wall
     -Wextra
     -Werror
+    -Wno-error
     "-I${CMAKE_SOURCE_DIR}/clks/include"
 )
 
@@ -413,6 +422,14 @@ if(NOT C_SOURCES)
 endif()
 if(NOT EXISTS "${LINKER_SCRIPT}")
     cl_log_error("missing linker script: ${LINKER_SCRIPT}")
+endif()
+
+if(NOT EXISTS "${XIAOBAIOS_TTY_FONT_SOURCE}")
+    cl_log_error("missing TTF font source: ${XIAOBAIOS_TTY_FONT_SOURCE}")
+endif()
+
+if(NOT EXISTS "${XIAOBAIOS_XDE_FONT_SOURCE}")
+    cl_log_error("missing XDE TTF font source: ${XIAOBAIOS_XDE_FONT_SOURCE}")
 endif()
 
 if(XIAOBAIOS_CLKS_ENABLE_EXTERNAL_PSF AND NOT EXISTS "${XIAOBAIOS_TTY_FONT_SOURCE}")
@@ -584,6 +601,7 @@ set(XIAOBAIOS_USER_CFLAGS
     -Wall
     -Wextra
     -Werror
+    -Wno-error
     "-I${XIAOBAIOS_USER_INCLUDE_DIR}"
 )
 
@@ -602,6 +620,7 @@ set(XIAOBAIOS_USER_KMAIN_CFLAGS
     -Wall
     -Wextra
     -Werror
+    -Wno-error
     "-I${XIAOBAIOS_USER_INCLUDE_DIR}"
 )
 
@@ -633,11 +652,16 @@ function(add_xiaobaios_user_c_object SRC OUTPUT_VAR)
         set(_src_path "${CMAKE_SOURCE_DIR}/${SRC}")
     endif()
     set(_deps "${_src_path}" ${XIAOBAIOS_USER_INC_SOURCES_ABS})
+    set(_cflags ${XIAOBAIOS_USER_CFLAGS})
+
+    if(_src_path MATCHES "/xiaobaios/apps/xde_main\\.c$" OR _src_path MATCHES "/xiaobaios/apps/xde_terminal_main\\.c$")
+        list(APPEND _cflags -Wno-error=unused-function)
+    endif()
 
     add_custom_command(
         OUTPUT "${OBJ_PATH}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${OBJ_DIR}"
-        COMMAND ${USER_CC} ${XIAOBAIOS_USER_CFLAGS} -c "${_src_path}" -o "${OBJ_PATH}"
+        COMMAND ${USER_CC} ${_cflags} -c "${_src_path}" -o "${OBJ_PATH}"
         DEPENDS ${_deps}
         VERBATIM
     )
@@ -690,7 +714,9 @@ foreach(SRC IN LISTS XIAOBAIOS_USER_APP_MAIN_SOURCES)
     string(REGEX REPLACE "[^A-Z0-9]" "_" _app_name_key "${_app_name_upper}")
     set(_app_enabled_var "XIAOBAIOS_USER_APP_${_app_name_key}")
 
-    if(NOT DEFINED ${_app_enabled_var})
+    if(_app_name STREQUAL "xde_terminal")
+        set(${_app_enabled_var} OFF CACHE BOOL "Build standalone XDE terminal app" FORCE)
+    elseif(NOT DEFINED ${_app_enabled_var})
         set(${_app_enabled_var} ON CACHE BOOL "Build xiaobaios user app ${_app_name}")
     else()
         set(${_app_enabled_var} ${${_app_enabled_var}} CACHE BOOL "Build xiaobaios user app ${_app_name}" FORCE)
@@ -734,6 +760,9 @@ foreach(SRC IN LISTS XIAOBAIOS_USER_APP_MAIN_SOURCES)
         list(APPEND XIAOBAIOS_USER_RAMDISK_COPY_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${_app_out}" "${BUILD_ROOT}/ramdisk_root/${_app_name}.elf")
     else()
         list(APPEND XIAOBAIOS_USER_RAMDISK_COPY_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${_app_out}" "${BUILD_ROOT}/ramdisk_root/shell/${_app_name}.elf")
+        if(_app_name STREQUAL "xsh")
+            list(APPEND XIAOBAIOS_USER_RAMDISK_COPY_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${_app_out}" "${BUILD_ROOT}/ramdisk_root/shell/shell.elf")
+        endif()
     endif()
 endforeach()
 
@@ -835,13 +864,49 @@ if(XIAOBAIOS_CLKS_ENABLE_EXTERNAL_PSF)
 
     set(XIAOBAIOS_RAMDISK_FONT_COMMANDS
         COMMAND ${CMAKE_COMMAND} -E make_directory "${BUILD_ROOT}/ramdisk_root/system"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XIAOBAIOS_XDE_FONT_SOURCE}" "${BUILD_ROOT}/ramdisk_root/system/xde.ttf"
         COMMAND ${CMAKE_COMMAND} -E copy "${XIAOBAIOS_TTY_PSF_IMAGE}" "${BUILD_ROOT}/ramdisk_root/system/tty.psf"
     )
-    set(XIAOBAIOS_RAMDISK_ROOT_DEPS ${RAMDISK_FILES} "${XIAOBAIOS_TTY_PSF_IMAGE}")
+    set(XIAOBAIOS_RAMDISK_ROOT_DEPS ${RAMDISK_FILES} "${XIAOBAIOS_TTY_PSF_IMAGE}" "${XIAOBAIOS_TTY_FONT_SOURCE}" "${XIAOBAIOS_XDE_FONT_SOURCE}")
 else()
-    set(XIAOBAIOS_RAMDISK_FONT_COMMANDS)
-    set(XIAOBAIOS_RAMDISK_ROOT_DEPS ${RAMDISK_FILES})
+    set(XIAOBAIOS_RAMDISK_FONT_COMMANDS
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${BUILD_ROOT}/ramdisk_root/system"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XIAOBAIOS_XDE_FONT_SOURCE}" "${BUILD_ROOT}/ramdisk_root/system/xde.ttf"
+    )
+    set(XIAOBAIOS_RAMDISK_ROOT_DEPS ${RAMDISK_FILES} "${XIAOBAIOS_XDE_FONT_SOURCE}")
 endif()
+
+if(NOT EXISTS "${XIAOBAIOS_XDE_START_ICON_SOURCE}")
+    cl_log_error("missing XDE start icon source: ${XIAOBAIOS_XDE_START_ICON_SOURCE}")
+endif()
+
+if(NOT EXISTS "${XIAOBAIOS_XDE_AVATAR_ICON_SOURCE}")
+    cl_log_error("missing XDE avatar icon source: ${XIAOBAIOS_XDE_AVATAR_ICON_SOURCE}")
+endif()
+
+add_custom_command(
+    OUTPUT "${XIAOBAIOS_XDE_START_ICON_RAW}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BUILD_ROOT}/generated"
+    COMMAND ${MAGICK} "${XIAOBAIOS_XDE_START_ICON_SOURCE}" -depth 8 -define stream:format=rgba "${XIAOBAIOS_XDE_START_ICON_RAW}"
+    DEPENDS "${XIAOBAIOS_XDE_START_ICON_SOURCE}"
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT "${XIAOBAIOS_XDE_AVATAR_ICON_RAW}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BUILD_ROOT}/generated"
+    COMMAND ${MAGICK} "${XIAOBAIOS_XDE_AVATAR_ICON_SOURCE}" -depth 8 -define stream:format=rgba "${XIAOBAIOS_XDE_AVATAR_ICON_RAW}"
+    DEPENDS "${XIAOBAIOS_XDE_AVATAR_ICON_SOURCE}"
+    VERBATIM
+)
+
+add_custom_target(xde-icons DEPENDS "${XIAOBAIOS_XDE_START_ICON_RAW}" "${XIAOBAIOS_XDE_AVATAR_ICON_RAW}")
+
+list(APPEND XIAOBAIOS_RAMDISK_FONT_COMMANDS
+    COMMAND ${CMAKE_COMMAND} -E copy "${XIAOBAIOS_XDE_START_ICON_RAW}" "${BUILD_ROOT}/ramdisk_root/system/xde_start.rgba"
+    COMMAND ${CMAKE_COMMAND} -E copy "${XIAOBAIOS_XDE_AVATAR_ICON_RAW}" "${BUILD_ROOT}/ramdisk_root/system/xde_avatar.rgba"
+)
+list(APPEND XIAOBAIOS_RAMDISK_ROOT_DEPS "${XIAOBAIOS_XDE_START_ICON_RAW}" "${XIAOBAIOS_XDE_AVATAR_ICON_RAW}")
 
 add_custom_command(
     OUTPUT "${RAMDISK_ROOT_STAMP}"

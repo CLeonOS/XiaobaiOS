@@ -1,4 +1,5 @@
 #include <cleonos_syscall.h>
+#include <stdio.h>
 
 #define CLEONOS_RUNTIME_ARGV_MAX 24ULL
 #define CLEONOS_RUNTIME_ENVP_MAX 24ULL
@@ -43,6 +44,8 @@ u64 _start(void) {
     }
 
     env_ptrs[envc] = (char *)0;
+
+    cleonos_stdio_configure(env_ptrs);
 
     if (cleonos_cmd_runtime_pre_main != (void (*)(char **))0) {
         cleonos_cmd_runtime_pre_main(env_ptrs);
