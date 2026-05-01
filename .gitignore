@@ -10,3 +10,4 @@ configs/menuconfig/.config.json
 configs/menuconfig/config.cmake
 limine/.git
 limine/.cleonos-*
+venv/
