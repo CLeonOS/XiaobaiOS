@@ -2,8 +2,87 @@
 
 #include <ctype.h>
 #include <limits.h>
+#include <string.h>
 
 #include <cleonos_syscall.h>
+
+typedef struct clib_heap_block {
+    size_t size;
+    int free;
+    struct clib_heap_block *next;
+    struct clib_heap_block *prev;
+} clib_heap_block;
+
+extern unsigned char __cleonos_heap_start[];
+extern unsigned char __cleonos_heap_end[];
+
+static clib_heap_block *clib_heap_head = (clib_heap_block *)0;
+
+static size_t clib_align_up(size_t value) {
+    size_t align = sizeof(void *) * 2U;
+    return (value + align - 1U) & ~(align - 1U);
+}
+
+static void clib_heap_init(void) {
+    size_t total;
+
+    if (clib_heap_head != (clib_heap_block *)0) {
+        return;
+    }
+
+    total = (size_t)(__cleonos_heap_end - __cleonos_heap_start);
+    if (total <= sizeof(clib_heap_block)) {
+        return;
+    }
+
+    clib_heap_head = (clib_heap_block *)__cleonos_heap_start;
+    clib_heap_head->size = total - sizeof(clib_heap_block);
+    clib_heap_head->free = 1;
+    clib_heap_head->next = (clib_heap_block *)0;
+    clib_heap_head->prev = (clib_heap_block *)0;
+}
+
+static void clib_heap_split(clib_heap_block *block, size_t size) {
+    clib_heap_block *tail;
+    unsigned char *tail_addr;
+
+    if (block == (clib_heap_block *)0 || block->size < size + sizeof(clib_heap_block) + 16U) {
+        return;
+    }
+
+    tail_addr = ((unsigned char *)block) + sizeof(clib_heap_block) + size;
+    tail = (clib_heap_block *)tail_addr;
+    tail->size = block->size - size - sizeof(clib_heap_block);
+    tail->free = 1;
+    tail->next = block->next;
+    tail->prev = block;
+
+    if (tail->next != (clib_heap_block *)0) {
+        tail->next->prev = tail;
+    }
+
+    block->size = size;
+    block->next = tail;
+}
+
+static void clib_heap_merge_next(clib_heap_block *block) {
+    clib_heap_block *next;
+
+    if (block == (clib_heap_block *)0) {
+        return;
+    }
+
+    next = block->next;
+    if (next == (clib_heap_block *)0 || next->free == 0) {
+        return;
+    }
+
+    block->size += sizeof(clib_heap_block) + next->size;
+    block->next = next->next;
+    if (block->next != (clib_heap_block *)0) {
+        block->next->prev = block;
+    }
+}
 
 static int clib_digit_value(int ch) {
     if (ch >= '0' && ch <= '9') {
@@ -239,6 +318,100 @@ void srand(unsigned int seed) {
 int rand(void) {
     clib_rand_state = (1103515245UL * clib_rand_state) + 12345UL;
     return (int)((clib_rand_state >> 16) & (unsigned long)RAND_MAX);
+}
+
+void *malloc(size_t size) {
+    clib_heap_block *current;
+    size_t need;
+
+    if (size == 0U) {
+        return (void *)0;
+    }
+
+    clib_heap_init();
+    need = clib_align_up(size);
+
+    current = clib_heap_head;
+    while (current != (clib_heap_block *)0) {
+        if (current->free != 0 && current->size >= need) {
+            clib_heap_split(current, need);
+            current->free = 0;
+            return (void *)(((unsigned char *)current) + sizeof(clib_heap_block));
+        }
+        current = current->next;
+    }
+
+    return (void *)0;
+}
+
+void *calloc(size_t count, size_t size) {
+    size_t total;
+    void *ptr;
+
+    if (count != 0U && size > ((size_t)-1) / count) {
+        return (void *)0;
+    }
+
+    total = count * size;
+    ptr = malloc(total);
+    if (ptr != (void *)0) {
+        (void)memset(ptr, 0, total);
+    }
+
+    return ptr;
+}
+
+void free(void *ptr) {
+    clib_heap_block *block;
+
+    if (ptr == (void *)0) {
+        return;
+    }
+
+    block = (clib_heap_block *)(((unsigned char *)ptr) - sizeof(clib_heap_block));
+    block->free = 1;
+    clib_heap_merge_next(block);
+    if (block->prev != (clib_heap_block *)0 && block->prev->free != 0) {
+        clib_heap_merge_next(block->prev);
+    }
+}
+
+void *realloc(void *ptr, size_t size) {
+    clib_heap_block *block;
+    void *new_ptr;
+    size_t copy_size;
+
+    if (ptr == (void *)0) {
+        return malloc(size);
+    }
+
+    if (size == 0U) {
+        free(ptr);
+        return (void *)0;
+    }
+
+    block = (clib_heap_block *)(((unsigned char *)ptr) - sizeof(clib_heap_block));
+    if (block->size >= size) {
+        clib_heap_split(block, clib_align_up(size));
+        return ptr;
+    }
+
+    if (block->next != (clib_heap_block *)0 && block->next->free != 0 &&
+        block->size + sizeof(clib_heap_block) + block->next->size >= size) {
+        clib_heap_merge_next(block);
+        clib_heap_split(block, clib_align_up(size));
+        return ptr;
+    }
+
+    new_ptr = malloc(size);
+    if (new_ptr == (void *)0) {
+        return (void *)0;
+    }
+
+    copy_size = (block->size < size) ? block->size : size;
+    (void)memcpy(new_ptr, ptr, copy_size);
+    free(ptr);
+    return new_ptr;
 }
 
 void exit(int status) {

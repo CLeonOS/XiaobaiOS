@@ -26,4 +26,10 @@ SECTIONS {
         *(COMMON)
         *(.bss .bss.*)
     } :data
+
+    .heap : ALIGN(0x1000) {
+        PROVIDE(__cleonos_heap_start = .);
+        . += 0x400000;
+        PROVIDE(__cleonos_heap_end = .);
+    } :data
 }

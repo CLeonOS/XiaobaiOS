@@ -30,6 +30,11 @@ unsigned long long strtoull(const char *text, char **out_end, int base);
 void srand(unsigned int seed);
 int rand(void);
 
+void *malloc(size_t size);
+void *calloc(size_t count, size_t size);
+void *realloc(void *ptr, size_t size);
+void free(void *ptr);
+
 void exit(int status);
 void abort(void);
 

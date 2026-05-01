@@ -42,7 +42,10 @@
       "description": "Enable kernel ELF app dispatcher and kelfd task.",
       "type": "bool",
       "default": true,
-      "depends_on": "CLEONOS_CLKS_ENABLE_DRIVER_MANAGER && CLEONOS_CLKS_ENABLE_ELFRUNNER_INIT",
+      "select": [
+        "CLEONOS_CLKS_ENABLE_DRIVER_MANAGER",
+        "CLEONOS_CLKS_ENABLE_ELFRUNNER_INIT"
+      ],
       "imply": [
         "CLEONOS_CLKS_ENABLE_ELFRUNNER_PROBE",
         "CLEONOS_CLKS_ENABLE_USER_SYSTEM_APP_PROBE"
@@ -54,7 +57,6 @@
       "description": "Auto-exec /shell/shell.elf after kernel boot.",
       "type": "bool",
       "default": true,
-      "depends_on": "CLEONOS_CLKS_ENABLE_USRD_TASK && CLEONOS_CLKS_ENABLE_KEYBOARD",
       "select": [
         "CLEONOS_CLKS_ENABLE_USRD_TASK",
         "CLEONOS_CLKS_ENABLE_KEYBOARD"
@@ -95,7 +97,10 @@
       "description": "Probe kernel ELF runtime metadata after ELFRUNNER init.",
       "type": "bool",
       "default": true,
-      "depends_on": "CLEONOS_CLKS_ENABLE_ELFRUNNER_INIT && CLEONOS_CLKS_ENABLE_KELF"
+      "select": [
+        "CLEONOS_CLKS_ENABLE_ELFRUNNER_INIT",
+        "CLEONOS_CLKS_ENABLE_KELF"
+      ]
     },
     {
       "key": "CLEONOS_CLKS_ENABLE_KLOGD_TASK",
@@ -274,7 +279,7 @@
       "title": "UserSafeController (USC)",
       "description": "Prompt before dangerous user syscalls and remember per-app approval for current boot.",
       "type": "bool",
-      "default": true,
+      "default": false,
       "depends_on": "CLEONOS_CLKS_ENABLE_KEYBOARD",
       "group": "USC Syscall Policy"
     },

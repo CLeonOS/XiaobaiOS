@@ -1,0 +1,136 @@
+[project]
+name = XiaoBaiOS
+default = iso
+build_dir = build/bdt-state
+language = zh-CN
+doctor_tools = python3, clang, clang++, ld.lld, rustc, tar, xorriso, qemu-system-x86_64
+
+[tools]
+CC = clang
+KERNEL_CXX = clang++
+LD = ld.lld
+USER_CC = clang
+USER_LD = ld.lld
+RUSTC = rustc
+PYTHON = python3
+NM = nm
+ADDR2LINE = addr2line
+XORRISO = xorriso
+TAR = tar
+GIT_TOOL = git
+MAKE_TOOL = make
+SH_TOOL = sh
+MAGICK = magick
+QEMU_X86_64 = qemu-system-x86_64
+OBJCOPY_FOR_TARGET = llvm-objcopy
+OBJDUMP_FOR_TARGET = llvm-objdump
+READELF_FOR_TARGET = llvm-readelf
+DISK_IMAGE_MB = 64
+
+[subprojects]
+paths = limine, clks, bdt
+
+[target.setup-tools]
+type = command
+command = {PYTHON} scripts/bdt_build.py setup-tools
+cache = false
+always = true
+
+[target.limine-ready]
+deps = setup-tools
+type = command
+command = {PYTHON} scripts/bdt_build.py limine-ready
+cache = false
+always = true
+
+[target.kernel]
+deps = setup-tools
+type = command
+command = {PYTHON} scripts/bdt_build.py kernel
+cache = false
+always = true
+
+[target.kernel-symbols]
+deps = kernel
+type = command
+command = {PYTHON} scripts/bdt_build.py kernel-symbols
+cache = false
+always = true
+
+[target.userapps]
+deps = setup-tools
+type = command
+command = {PYTHON} scripts/bdt_build.py userapps
+cache = false
+always = true
+
+[target.ramdisk-root]
+deps = userapps
+type = command
+command = {PYTHON} scripts/bdt_build.py ramdisk-root
+cache = false
+always = true
+
+[target.ramdisk]
+deps = ramdisk-root
+type = command
+command = {PYTHON} scripts/bdt_build.py ramdisk
+cache = false
+always = true
+
+[target.disk-image]
+deps = setup-tools
+type = command
+command = {PYTHON} scripts/bdt_build.py disk-image
+cache = false
+always = true
+
+[target.iso]
+deps = setup-tools, limine-ready, kernel, ramdisk
+type = command
+command = {PYTHON} scripts/bdt_build.py iso
+cache = false
+always = true
+
+[target.run]
+deps = iso, disk-image
+type = command
+command = {PYTHON} scripts/bdt_build.py run
+cache = false
+always = true
+
+[target.debug]
+deps = iso, disk-image
+type = command
+command = {PYTHON} scripts/bdt_build.py debug
+cache = false
+always = true
+
+[target.menuconfig]
+type = command
+command = {PYTHON} scripts/menuconfig.py --non-interactive
+cache = false
+always = true
+
+[target.clean]
+type = command
+command = {PYTHON} scripts/bdt_build.py clean
+cache = false
+always = true
+
+[target.clean-all]
+type = command
+command = {PYTHON} scripts/bdt_build.py clean-all
+cache = false
+always = true
+
+[target.clean-drive-image]
+type = command
+command = {PYTHON} scripts/bdt_build.py clean-drive-image
+cache = false
+always = true
+
+[target.all]
+deps = iso
+type = command
+cache = false
