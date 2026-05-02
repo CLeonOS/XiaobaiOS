@@ -20,6 +20,8 @@ SECTIONS {
 
     .data : ALIGN(0x1000) {
         *(.data .data.*)
+        *(.got .got.*)
+        *(.got.plt)
     } :data
 
     .bss : ALIGN(0x1000) {
@@ -27,7 +29,7 @@ SECTIONS {
         *(.bss .bss.*)
     } :data
 
-    .heap : ALIGN(0x1000) {
+    .heap (NOLOAD) : ALIGN(0x1000) {
         PROVIDE(__cleonos_heap_start = .);
         . += 0x400000;
         PROVIDE(__cleonos_heap_end = .);

@@ -3,7 +3,7 @@ name = XiaoBaiOS
 default = iso
 build_dir = build/bdt-state
 language = zh-CN
-doctor_tools = python3, clang, clang++, ld.lld, rustc, tar, xorriso, qemu-system-x86_64
+doctor_tools = clang, clang++, ld.lld, rustc, tar, xorriso, qemu-system-x86_64
 
 [tools]
 CC = clang
@@ -14,7 +14,6 @@ USER_LD = ld.lld
 RUSTC = rustc
 PYTHON = python3
 NM = nm
-ADDR2LINE = addr2line
 XORRISO = xorriso
 TAR = tar
 GIT_TOOL = git
@@ -27,82 +26,152 @@ OBJDUMP_FOR_TARGET = llvm-objdump
 READELF_FOR_TARGET = llvm-readelf
 DISK_IMAGE_MB = 64
 
+[config]
+KERNEL_CONFIG_FLAGS = -DCLKS_ARCH_X86_64=1,-DCLKS_CFG_EXTERNAL_PSF=1,-DCLKS_CFG_USER_SYSTEM_APP_PROBE=0,-DCLKS_CFG_EXEC_SERIAL_LOG=0,-DCLKS_CFG_SYSCALL_SERIAL_LOG=0,-DCLKS_CFG_SYSCALL_USERID_SERIAL_LOG=0,-DCLKS_CFG_LOG_OUTPUT_TTY=0,-DCLKS_CFG_LOG_OUTPUT_SERIAL=0,-DCLKS_CFG_LOG_OUTPUT_JOURNAL=0,-DCLKS_CFG_USC=0,-DCLKS_CFG_USC_SC_FS_MKDIR=0,-DCLKS_CFG_USC_SC_FS_WRITE=0,-DCLKS_CFG_USC_SC_FS_APPEND=0,-DCLKS_CFG_USC_SC_FS_REMOVE=0,-DCLKS_CFG_USC_SC_EXEC_PATH=0,-DCLKS_CFG_USC_SC_EXEC_PATHV=0,-DCLKS_CFG_USC_SC_EXEC_PATHV_IO=0,-DCLKS_CFG_USC_SC_SPAWN_PATH=0,-DCLKS_CFG_USC_SC_SPAWN_PATHV=0,-DCLKS_CFG_USC_SC_PROC_KILL=0,-DCLKS_CFG_USC_SC_SHUTDOWN=0,-DCLKS_CFG_USC_SC_RESTART=0
+KERNEL_CFLAGS = -std=c11,-ffreestanding,-fno-stack-protector,-fno-builtin,-mgeneral-regs-only,-O2,-ffunction-sections,-fdata-sections,-fno-unwind-tables,-fno-asynchronous-unwind-tables,-fno-omit-frame-pointer,-g,-Wall,-Wextra,-Werror,-Wno-error,-I{root}/build/x86_64/generated/include,-I{root}/clks/include,{KERNEL_CONFIG_FLAGS},-m64,-mno-red-zone,-mcmodel=kernel,-fno-pic,-fno-pie
+KERNEL_CXXFLAGS = -std=c++17,-ffreestanding,-fno-stack-protector,-fno-builtin,-fno-exceptions,-fno-rtti,-fno-threadsafe-statics,-fno-use-cxa-atexit,-O2,-ffunction-sections,-fdata-sections,-fno-unwind-tables,-fno-asynchronous-unwind-tables,-fno-omit-frame-pointer,-g,-Wall,-Wextra,-Werror,-Wno-error,-I{root}/build/x86_64/generated/include,-I{root}/clks/include,{KERNEL_CONFIG_FLAGS},-m64,-mno-red-zone,-mcmodel=kernel,-fno-pic,-fno-pie
+KERNEL_ASFLAGS = -ffreestanding,-I{root}/build/x86_64/generated/include,-I{root}/clks/include,{KERNEL_CONFIG_FLAGS},-m64,-mno-red-zone,-mcmodel=kernel,-fno-pic,-fno-pie
+USER_CFLAGS = -std=c11,-ffreestanding,-fno-stack-protector,-fno-builtin,-mgeneral-regs-only,-O2,-ffunction-sections,-fdata-sections,-fno-unwind-tables,-fno-asynchronous-unwind-tables,-fno-omit-frame-pointer,-Wall,-Wextra,-Werror,-Wno-error,-I{root}/xiaobaios/include
+USER_LDFLAGS = -nostdlib,--gc-sections,-z,max-page-size=0x1000
+KERNEL_LDFLAGS = -nostdlib,--gc-sections,-z,max-page-size=0x1000
+
 [subprojects]
 paths = limine, clks, bdt
 
 [target.setup-tools]
 type = command
-command = {PYTHON} scripts/bdt_build.py setup-tools
+command = {SH_TOOL} -c 'for t in clang clang++ ld.lld rustc tar xorriso qemu-system-x86_64; do command -v "$t" >/dev/null || exit 1; done'
 cache = false
 always = true
 
 [target.limine-ready]
 deps = setup-tools
 type = command
-command = {PYTHON} scripts/bdt_build.py limine-ready
+command = {SH_TOOL} -c 'set -e; if [ -x limine/limine ] && [ -f limine/limine-bios.sys ]; then exit 0; fi; if [ -x limine/bin/limine ] && [ -f limine/bin/limine-bios.sys ]; then exit 0; fi; if [ -f limine/Makefile ]; then make -C limine -j4; else cd limine && if [ -x bootstrap ]; then sh bootstrap; fi && OBJCOPY_FOR_TARGET="{OBJCOPY_FOR_TARGET}" OBJDUMP_FOR_TARGET="{OBJDUMP_FOR_TARGET}" READELF_FOR_TARGET="{READELF_FOR_TARGET}" sh configure --enable-bios --enable-bios-cd --enable-uefi-x86-64 --enable-uefi-cd && make -j4; fi'
 cache = false
 always = true
 
-[target.kernel]
+[target.kernel-version-header]
 deps = setup-tools
 type = command
-command = {PYTHON} scripts/bdt_build.py kernel
+command = {SH_TOOL} -c 'set -e; out=build/x86_64/generated/include/clks/version.h; mkdir -p "$(dirname "$out")"; base=$(sed -n "s/^#define CLKS_VERSION_STRING \"\\(.*\\)\"/\\1/p" clks/include/clks/version.h | head -n 1); [ -n "$base" ] || base=unknown; stamp=$(TZ=Asia/Shanghai date "+%a %b %-d %H:%M:%S UTC+8 %Y"); printf "#ifndef CLKS_VERSION_H\n#define CLKS_VERSION_H\n\n#define CLKS_VERSION_STRING \"%s SMP PREEMPT %s\"\n\n#endif\n" "$base" "$stamp" > "$out"'
+outputs = {root}/build/x86_64/generated/include/clks/version.h
 cache = false
 always = true
+
+[target.kernel-c-objects]
+deps = setup-tools, kernel-version-header
+type = compile
+tool = {CC}
+sources = clks/arch/x86_64/startup/boot.c,clks/kernel/boot/limine/limine_requests.c,clks/kernel/core/interrupts.c,clks/kernel/core/kmain.c,clks/kernel/core/log.c,clks/kernel/core/panic.c,clks/kernel/core/scheduler.c,clks/kernel/core/service.c,clks/kernel/hal/audio/pcspeaker.c,clks/kernel/hal/serial/serial.c,clks/kernel/hal/video/font8x8.c,clks/kernel/hal/video/framebuffer.c,clks/kernel/hal/video/psf_font.c,clks/kernel/input/keyboard.c,clks/kernel/input/mouse.c,clks/kernel/interface/desktop.c,clks/kernel/interface/shell.c,clks/kernel/interface/tty.c,clks/kernel/interface/wm.c,clks/kernel/memory/heap.c,clks/kernel/memory/pmm.c,clks/kernel/runtime/driver.c,clks/kernel/runtime/elf64.c,clks/kernel/runtime/elfrunner.c,clks/kernel/runtime/exec.c,clks/kernel/runtime/kelf.c,clks/kernel/runtime/net.c,clks/kernel/runtime/pty.c,clks/kernel/runtime/syscall.c,clks/kernel/runtime/userland.c,clks/kernel/storage/disk.c,clks/kernel/storage/fs.c,clks/kernel/storage/ramdisk.c,clks/kernel/support/libc_compat.c,clks/kernel/support/string.c,clks/third_party/miniz/miniz_support.c,clks/third_party/miniz/miniz_tdef.c,clks/third_party/qrcodegen/qrcodegen.c
+output = {root}/build/x86_64/obj
+cflags = {KERNEL_CFLAGS}
+
+[target.kernel-cxx-objects]
+deps = setup-tools, kernel-version-header
+type = compile
+tool = {KERNEL_CXX}
+sources = clks/kernel/core/panic_qr.cpp
+output = {root}/build/x86_64/obj
+cxxflags = {KERNEL_CXXFLAGS}
+
+[target.kernel-asm-objects]
+deps = setup-tools, kernel-version-header
+type = compile
+tool = {CC}
+sources = clks/arch/x86_64/interrupt/interrupt_stubs.S,clks/arch/x86_64/startup/exec_stack_call.S
+output = {root}/build/x86_64/obj
+asflags = {KERNEL_ASFLAGS}
+
+[target.kernel-rust]
+deps = setup-tools
+type = rust-staticlib
+tool = {RUSTC}
+sources = {root}/clks/rust/src/lib.rs
+output = {root}/build/x86_64/libclks_kernel_rust.a
+flags = --crate-type,staticlib,-C,panic=abort,-O
+
+[target.kernel]
+deps = kernel-c-objects, kernel-cxx-objects, kernel-asm-objects, kernel-rust
+type = link
+tool = {LD}
+inputs = {root}/build/x86_64/obj
+objects = {root}/build/x86_64/libclks_kernel_rust.a
+output = {root}/build/x86_64/clks_kernel.elf
+linker_script = {root}/clks/arch/x86_64/linker.ld
+ldflags = {KERNEL_LDFLAGS}
 
 [target.kernel-symbols]
 deps = kernel
 type = command
-command = {PYTHON} scripts/bdt_build.py kernel-symbols
+command = {SH_TOOL} scripts/write_kernel_symbols.sh build/x86_64/clks_kernel.elf build/x86_64/kernel.sym
 cache = false
 always = true
 
 [target.userapps]
 deps = setup-tools
+type = c-apps
+tool = {USER_CC}
+main_dir = {root}/xiaobaios/apps
+common_dirs = {root}/xiaobaios/src
+runtime_sources = {root}/xiaobaios/apps/cmd_runtime.c
+entry_suffix = _main.c
+objects = {root}/build/x86_64/xiaobaios_user/obj
+output = {root}/build/x86_64/xiaobaios_user/apps
+linker_script = {root}/xiaobaios/user.ld
+cflags = {USER_CFLAGS}
+ldflags = {USER_LDFLAGS}
+skip_apps = xde_terminal
+app.xde.cflags = -Wno-error=unused-function
+
+[target.generated-assets]
+deps = setup-tools
 type = command
-command = {PYTHON} scripts/bdt_build.py userapps
+command = {SH_TOOL} -c 'set -e; mkdir -p build/x86_64/generated; {PYTHON} scripts/make_psf_font.py --font fonts/system.ttf --output build/x86_64/generated/tty.psf --width 10 --height 20 --font-size 16 --threshold 172'
+outputs = {root}/build/x86_64/generated/tty.psf
 cache = false
 always = true
 
 [target.ramdisk-root]
-deps = userapps
+deps = userapps, kernel-symbols, generated-assets
 type = command
-command = {PYTHON} scripts/bdt_build.py ramdisk-root
+command = {SH_TOOL} -c 'set -e; rm -rf build/x86_64/ramdisk_root; mkdir -p build/x86_64/ramdisk_root/system/etc build/x86_64/ramdisk_root/shell build/x86_64/ramdisk_root/driver build/x86_64/ramdisk_root/dev build/x86_64/ramdisk_root/home build/x86_64/ramdisk_root/temp; [ ! -d ramdisk ] || cp -a ramdisk/. build/x86_64/ramdisk_root/; cp fonts/xde.ttf build/x86_64/ramdisk_root/system/xde.ttf; cp build/x86_64/generated/tty.psf build/x86_64/ramdisk_root/system/tty.psf; cp build/x86_64/kernel.sym build/x86_64/ramdisk_root/system/kernel.sym; for app in build/x86_64/xiaobaios_user/apps/*.elf; do name=$(basename "$app" .elf); if [ "$name" = hello ]; then cp "$app" build/x86_64/ramdisk_root/; elif case "$name" in *drv) true;; *) false;; esac; then cp "$app" build/x86_64/ramdisk_root/driver/; else cp "$app" build/x86_64/ramdisk_root/shell/; fi; if [ "$name" = xsh ]; then cp "$app" build/x86_64/ramdisk_root/shell/shell.elf; fi; done'
 cache = false
 always = true
 
 [target.ramdisk]
 deps = ramdisk-root
-type = command
-command = {PYTHON} scripts/bdt_build.py ramdisk
+type = tar
+tool = {TAR}
+inputs = {root}/build/x86_64/ramdisk_root
+output = {root}/build/x86_64/xiaobaios_ramdisk.tar
 cache = false
 always = true
 
 [target.disk-image]
 deps = setup-tools
-type = command
-command = {PYTHON} scripts/bdt_build.py disk-image
-cache = false
-always = true
+type = truncate
+output = {root}/build/xiaobaios_disk.img
+flags = {DISK_IMAGE_MB}
 
 [target.iso]
 deps = setup-tools, limine-ready, kernel, ramdisk
 type = command
-command = {PYTHON} scripts/bdt_build.py iso
+command = {SH_TOOL} -c 'set -e; rm -rf build/x86_64/iso_root; mkdir -p build/x86_64/iso_root/boot/limine build/x86_64/iso_root/EFI/BOOT; cp build/x86_64/clks_kernel.elf build/x86_64/iso_root/boot/clks_kernel.elf; cp build/x86_64/xiaobaios_ramdisk.tar build/x86_64/iso_root/boot/xiaobaios_ramdisk.tar; cp configs/limine.conf build/x86_64/iso_root/boot/limine/limine.conf; cp configs/limine.conf build/x86_64/iso_root/EFI/BOOT/limine.conf; cp configs/limine.conf build/x86_64/iso_root/limine.conf; if [ -f limine/limine-bios.sys ]; then ldir=limine; else ldir=limine/bin; fi; cp "$ldir"/limine-bios.sys "$ldir"/limine-bios-cd.bin "$ldir"/limine-uefi-cd.bin build/x86_64/iso_root/boot/limine/; cp "$ldir"/BOOTX64.EFI build/x86_64/iso_root/EFI/BOOT/BOOTX64.EFI; mkdir -p build; {XORRISO} -as mkisofs -b boot/limine/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label build/x86_64/iso_root -o build/XiaoBaiOS-x86_64.iso; "$ldir"/limine bios-install build/XiaoBaiOS-x86_64.iso'
 cache = false
 always = true
 
 [target.run]
 deps = iso, disk-image
 type = command
-command = {PYTHON} scripts/bdt_build.py run
+command = {QEMU_X86_64} -M pc -m 1024M -cdrom {root}/build/XiaoBaiOS-x86_64.iso -drive file={root}/build/xiaobaios_disk.img,format=raw,if=none,id=xiaobaidisk,media=disk -device ide-hd,drive=xiaobaidisk,bus=ide.0 -serial stdio
 cache = false
 always = true
 
 [target.debug]
 deps = iso, disk-image
 type = command
-command = {PYTHON} scripts/bdt_build.py debug
+command = {QEMU_X86_64} -M pc -m 1024M -cdrom {root}/build/XiaoBaiOS-x86_64.iso -drive file={root}/build/xiaobaios_disk.img,format=raw,if=none,id=xiaobaidisk,media=disk -device ide-hd,drive=xiaobaidisk,bus=ide.0 -serial stdio -s -S
 cache = false
 always = true
 
@@ -113,20 +182,20 @@ cache = false
 always = true
 
 [target.clean]
-type = command
-command = {PYTHON} scripts/bdt_build.py clean
+type = remove
+inputs = {root}/build/x86_64
 cache = false
 always = true
 
 [target.clean-all]
-type = command
-command = {PYTHON} scripts/bdt_build.py clean-all
+type = remove
+inputs = {root}/build
 cache = false
 always = true
 
 [target.clean-drive-image]
-type = command
-command = {PYTHON} scripts/bdt_build.py clean-drive-image
+type = remove
+inputs = {root}/build/xiaobaios_disk.img
 cache = false
 always = true
 

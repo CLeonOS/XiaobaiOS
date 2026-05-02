@@ -8,6 +8,7 @@ XiaoBaiOS 是一个独立的、基于 CLKS 内核的操作系统项目。
 
 - 独立的发行版目录，位于 `xiaobaios/`
 - 默认 LLVM 工具链：`clang`、`ld.lld`、`llvm-objcopy`、`llvm-objdump`、`llvm-readelf`、`llvm-nm`、`llvm-addr2line`
+- `project.bdt` 中的 bdt 原生构建图
 - 纯终端版 `menuconfig`，支持中文
 - 从 `fonts/system.ttf` 构建 PSF 字体
 - `xiaobaios/apps/` 下的用户程序会被编译并打包进 ramdisk
@@ -17,8 +18,8 @@ XiaoBaiOS 是一个独立的、基于 CLKS 内核的操作系统项目。
 
 ## 仓库结构
 
+- `bdt/` - 构建工具源码
 - `clks/` - 内核、运行时、驱动、shell 和支撑代码
-- `cmake/` - 构建辅助脚本
 - `configs/` - Limine 与 menuconfig 生成配置
 - `fonts/` - 字体资源
 - `ramdisk/` - 基础 ramdisk 内容
@@ -29,12 +30,21 @@ XiaoBaiOS 是一个独立的、基于 CLKS 内核的操作系统项目。
 
 ## 构建
 
-项目使用 CMake 驱动，并由顶层 `Makefile` 包装。
+项目使用 `project.bdt` 中的 bdt 构建图驱动。顶层 `Makefile` 只负责构建
+`bdt` 并转发常用目标。
 
 ```bash
 make menuconfig
 make iso
 make run
+```
+
+也可以在构建出 bdt 后直接调用：
+
+```bash
+make bdt
+build/bdt/bdt --list
+build/bdt/bdt iso -j 4
 ```
 
 常用目标：

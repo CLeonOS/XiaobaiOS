@@ -8,6 +8,7 @@ This repository now exists as an independent CLKS distribution workspace and no 
 
 - Standalone distribution directory located at `xiaobaios/`
 - Default LLVM toolchain: `clang`, `ld.lld`, `llvm-objcopy`, `llvm-objdump`, `llvm-readelf`, `llvm-nm`, `llvm-addr2line`
+- bdt-native build graph in `project.bdt`
 - Pure terminal `menuconfig` with Chinese support
 - Builds a PSF font from `fonts/system.ttf`
 - User programs under `xiaobaios/apps/` are compiled and packaged into the ramdisk
@@ -18,8 +19,8 @@ This repository now exists as an independent CLKS distribution workspace and no 
 
 ## Repository Structure
 
+- `bdt/` - Build tool source code
 - `clks/` - Kernel, runtime, drivers, shell, and supporting code  
-- `cmake/` - Build helper scripts  
 - `configs/` - Limine and `menuconfig` generated configuration  
 - `fonts/` - Font assets  
 - `ramdisk/` - Base ramdisk contents  
@@ -30,12 +31,21 @@ This repository now exists as an independent CLKS distribution workspace and no 
 
 ## Build
 
-The project is driven by CMake and wrapped by the top-level Makefile.
+The project is driven by `bdt` through `project.bdt`. The top-level `Makefile`
+only builds `bdt` and forwards common targets to it.
 
 ```bash
 make menuconfig
 make iso
 make run
+```
+
+You can also call `bdt` directly after building it:
+
+```bash
+make bdt
+build/bdt/bdt --list
+build/bdt/bdt iso -j 4
 ```
 
 Common targets:

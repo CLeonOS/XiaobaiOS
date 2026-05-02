@@ -31,9 +31,9 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
     ush_writeln("  mv <src> <dst>");
     ush_writeln("  rm <path>");
     ush_writeln("  fastfetch");
+    ush_writeln("  uname [-a|-s|-n|-r|-m]");
     ush_writeln("  diskinfo");
     ush_writeln("  ping [ipv4]");
-    ush_writeln("  web <file|http[s]://host[:port]/path>");
     ush_writeln("  mkfsfat32 [label]");
     ush_writeln("  mount [path]");
     ush_writeln("  partctl <subcommand>");
