@@ -59,6 +59,7 @@ jobs:
             llvm \
             mtools \
             nasm \
+            python3-pil \
             qemu-system-x86 \
             rustc \
             xorriso

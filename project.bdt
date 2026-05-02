@@ -3,7 +3,7 @@ name = XiaoBaiOS
 default = iso
 build_dir = build/bdt-state
 language = zh-CN
-doctor_tools = clang, clang++, ld.lld, rustc, tar, xorriso, qemu-system-x86_64
+doctor_tools = clang, clang++, ld.lld, llvm-nm, rustc, tar, xorriso, qemu-system-x86_64
 
 [tools]
 CC = clang
@@ -13,7 +13,7 @@ USER_CC = clang
 USER_LD = ld.lld
 RUSTC = rustc
 PYTHON = python3
-NM = nm
+NM = llvm-nm
 XORRISO = xorriso
 TAR = tar
 GIT_TOOL = git
@@ -40,7 +40,7 @@ paths = limine, clks, bdt
 
 [target.setup-tools]
 type = command
-command = {SH_TOOL} -c 'for t in clang clang++ ld.lld rustc tar xorriso qemu-system-x86_64; do command -v "$t" >/dev/null || exit 1; done'
+command = {SH_TOOL} -c 'for t in clang clang++ ld.lld llvm-nm rustc tar xorriso qemu-system-x86_64; do command -v "$t" >/dev/null || exit 1; done'
 cache = false
 always = true
 
@@ -104,7 +104,7 @@ ldflags = {KERNEL_LDFLAGS}
 [target.kernel-symbols]
 deps = kernel
 type = command
-command = {SH_TOOL} scripts/write_kernel_symbols.sh build/x86_64/clks_kernel.elf build/x86_64/kernel.sym
+command = {SH_TOOL} -c 'NM="{NM}" {SH_TOOL} scripts/write_kernel_symbols.sh build/x86_64/clks_kernel.elf build/x86_64/kernel.sym'
 cache = false
 always = true
 

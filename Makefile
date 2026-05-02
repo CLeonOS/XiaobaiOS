@@ -4,6 +4,7 @@ MAKEFLAGS += --no-print-directory
 BDT_BUILD_DIR ?= $(CURDIR)/build/bdt
 BDT ?= $(BDT_BUILD_DIR)/bdt
 BDT_PROJECT ?= project.bdt
+BDT_CC ?= clang
 BDT_CFLAGS ?= -std=c11 -O2 -Wall -Wextra -D_XOPEN_SOURCE=700
 JOBS ?= 4
 PYTHON ?= python3
@@ -13,7 +14,7 @@ PYTHON ?= python3
 all: iso
 
 bdt:
-> @$(MAKE) -C bdt BUILD_DIR="$(BDT_BUILD_DIR)" CFLAGS="$(BDT_CFLAGS)"
+> @$(MAKE) -C bdt BUILD_DIR="$(BDT_BUILD_DIR)" CC="$(BDT_CC)" CFLAGS="$(BDT_CFLAGS)"
 
 setup: setup-tools
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-nm_tool=${NM:-nm}
+nm_tool=${NM:-llvm-nm}
 kernel=${1:-build/x86_64/clks_kernel.elf}
 output=${2:-build/x86_64/kernel.sym}
 
