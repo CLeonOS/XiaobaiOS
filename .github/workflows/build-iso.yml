@@ -12,14 +12,14 @@ on:
       - main
     paths:
       - ".github/workflows/build-iso.yml"
-      - "CMakeLists.txt"
       - "Makefile"
-      - "cmake/**"
+      - "project.bdt"
+      - "bdt/**"
       - "configs/**"
       - "clks/**"
       - "fonts/**"
       - "ramdisk/**"
-      - "rust/**"
+      - "scripts/**"
       - "xiaobaios/**"
       - ".gitmodules"
 
@@ -59,19 +59,15 @@ jobs:
             llvm \
             mtools \
             nasm \
+            qemu-system-x86 \
             rustc \
             xorriso
 
-      - name: 同步 Limine 子模块
+      - name: 同步子模块
         run: git submodule update --init --recursive
 
-      - name: 配置构建目录
-        run: |
-          if [ -n "${{ github.event.inputs.disk_image_mb }}" ]; then
-            make configure DISK_IMAGE_MB="${{ github.event.inputs.disk_image_mb }}"
-          else
-            make configure
-          fi
+      - name: 生成默认配置
+        run: make menuconfig
 
       - name: 构建 ISO 镜像
         run: |
