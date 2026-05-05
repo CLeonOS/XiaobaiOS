@@ -13,6 +13,7 @@ int fputc(int ch, int fd);
 int fgetc(int fd);
 int fputs(const char *text, int fd);
 int puts(const char *text);
+int fflush(int fd);
 
 int vsnprintf(char *out, unsigned long out_size, const char *fmt, va_list args);
 int snprintf(char *out, unsigned long out_size, const char *fmt, ...);
@@ -25,5 +26,6 @@ int vprintf(const char *fmt, va_list args);
 int printf(const char *fmt, ...);
 
 void cleonos_stdio_configure(char **envp);
+void cleonos_stdio_flush_all(void);
 
 #endif

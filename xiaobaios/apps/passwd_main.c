@@ -9,6 +9,8 @@ static int ush_read_line_prompt(const char *prompt, char *out, u64 out_size) {
 
     out[0] = '\0';
     ush_write(prompt);
+    (void)fflush(1);
+    (void)fflush(2);
 
     for (;;) {
         u64 ch = cleonos_sys_kbd_get_char();
@@ -41,7 +43,6 @@ static int ush_read_line_prompt(const char *prompt, char *out, u64 out_size) {
 }
 
 static int ush_cmd_passwd(const ush_state *sh, const char *arg) {
-    ush_account_record target;
     char target_name[USH_USER_NAME_MAX];
     char current[128];
     char newpw1[128];
@@ -53,31 +54,21 @@ static int ush_cmd_passwd(const ush_state *sh, const char *arg) {
 
     ush_copy(target_name, (u64)sizeof(target_name), sh->user_name);
     if (arg != (const char *)0 && arg[0] != '\0') {
-        if (sh->uid != 0ULL) {
+        if (sh->role != CLEONOS_USER_ROLE_ADMIN) {
             ush_writeln("passwd: permission denied");
             return 0;
         }
         ush_copy(target_name, (u64)sizeof(target_name), arg);
     }
 
-    ush_zero(&target, (u64)sizeof(target));
-    if (ush_account_lookup_passwd(target_name, &target) == 0) {
-        ush_writeln("passwd: user not found");
-        return 0;
-    }
-
-    if (sh->uid != 0ULL && target.uid != sh->uid) {
+    if (sh->role != CLEONOS_USER_ROLE_ADMIN && ush_streq(target_name, sh->user_name) == 0) {
         ush_writeln("passwd: permission denied");
         return 0;
     }
 
-    if (sh->uid != 0ULL) {
+    current[0] = '\0';
+    if (sh->role != CLEONOS_USER_ROLE_ADMIN || ush_streq(target_name, sh->user_name) != 0) {
         if (ush_read_line_prompt("current password: ", current, (u64)sizeof(current)) == 0) {
-            return 0;
-        }
-
-        if (ush_account_verify_password(target.name, current) == 0) {
-            ush_writeln("passwd: authentication failure");
             return 0;
         }
     }
@@ -100,7 +91,7 @@ static int ush_cmd_passwd(const ush_state *sh, const char *arg) {
         return 0;
     }
 
-    if (ush_account_set_password(target.name, newpw1) == 0) {
+    if (cleonos_sys_user_passwd(target_name, current, newpw1) == 0ULL) {
         ush_writeln("passwd: failed to update password");
         return 0;
     }
@@ -136,13 +127,17 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             ush_copy(sh.user_name, (u64)sizeof(sh.user_name), ctx.user_name);
             sh.uid = ctx.uid;
             sh.gid = ctx.gid;
+            sh.role = ctx.role;
         }
     }
+
+    (void)ush_sync_user_from_kernel(&sh);
 
     if (sh.user_name[0] == '\0') {
         ush_copy(sh.user_name, (u64)sizeof(sh.user_name), "root");
         sh.uid = 0ULL;
         sh.gid = 0ULL;
+        sh.role = CLEONOS_USER_ROLE_ADMIN;
     }
 
     success = ush_cmd_passwd(&sh, ctx.arg);
@@ -158,11 +153,13 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             ret.exit_code = sh.exit_code;
         }
 
-        if (ush_streq(sh.user_name, ctx.user_name) == 0 || sh.uid != ctx.uid || sh.gid != ctx.gid) {
+        if (ush_streq(sh.user_name, ctx.user_name) == 0 || sh.uid != ctx.uid || sh.gid != ctx.gid ||
+            sh.role != ctx.role) {
             ret.flags |= USH_CMD_RET_FLAG_USER;
             ush_copy(ret.user_name, (u64)sizeof(ret.user_name), sh.user_name);
             ret.uid = sh.uid;
             ret.gid = sh.gid;
+            ret.role = sh.role;
         }
 
         (void)ush_command_ret_write(&ret);

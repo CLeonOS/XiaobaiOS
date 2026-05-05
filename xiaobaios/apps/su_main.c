@@ -9,6 +9,8 @@ static int ush_su_read_line(const char *prompt, char *out, u64 out_size) {
 
     out[0] = '\0';
     ush_write(prompt);
+    (void)fflush(1);
+    (void)fflush(2);
 
     for (;;) {
         u64 ch = cleonos_sys_kbd_get_char();
@@ -40,14 +42,14 @@ static int ush_su_read_line(const char *prompt, char *out, u64 out_size) {
     }
 }
 
-static int ush_apply_home_if_any(ush_state *sh, const ush_account_record *rec) {
-    if (sh == (ush_state *)0 || rec == (const ush_account_record *)0) {
+static int ush_apply_home_if_any(ush_state *sh, const cleonos_user_info *info) {
+    if (sh == (ush_state *)0 || info == (const cleonos_user_info *)0) {
         return 0;
     }
 
-    if (rec->home[0] == '/') {
-        if (cleonos_sys_fs_stat_type(rec->home) == 2ULL) {
-            ush_copy(sh->cwd, (u64)sizeof(sh->cwd), rec->home);
+    if (info->home[0] == '/') {
+        if (cleonos_sys_fs_stat_type(info->home) == 2ULL) {
+            ush_copy(sh->cwd, (u64)sizeof(sh->cwd), info->home);
         }
     }
 
@@ -55,7 +57,7 @@ static int ush_apply_home_if_any(ush_state *sh, const ush_account_record *rec) {
 }
 
 static int ush_cmd_su(ush_state *sh, const char *arg) {
-    ush_account_record target;
+    cleonos_user_info target;
     char target_name[USH_USER_NAME_MAX];
     char password[128];
 
@@ -65,26 +67,23 @@ static int ush_cmd_su(ush_state *sh, const char *arg) {
 
     ush_copy(target_name, (u64)sizeof(target_name), (arg == (const char *)0 || arg[0] == '\0') ? "root" : arg);
 
-    ush_zero(&target, (u64)sizeof(target));
-    if (ush_account_lookup_passwd(target_name, &target) == 0) {
-        ush_writeln("su: user not found");
-        return 0;
-    }
-
-    if (sh->uid != 0ULL && target.uid != sh->uid) {
+    password[0] = '\0';
+    if (sh->role != CLEONOS_USER_ROLE_ADMIN || ush_streq(target_name, sh->user_name) != 0) {
         if (ush_su_read_line("Password: ", password, (u64)sizeof(password)) == 0) {
             return 0;
         }
+    }
 
-        if (ush_account_verify_password(target.name, password) == 0) {
-            ush_writeln("su: authentication failure");
-            return 0;
-        }
+    ush_zero(&target, (u64)sizeof(target));
+    if (cleonos_sys_user_login(target_name, password, &target) == 0ULL) {
+        ush_writeln("su: authentication failure");
+        return 0;
     }
 
     ush_copy(sh->user_name, (u64)sizeof(sh->user_name), target.name);
     sh->uid = target.uid;
-    sh->gid = target.gid;
+    sh->gid = target.uid;
+    sh->role = target.role;
     (void)ush_apply_home_if_any(sh, &target);
 
     ush_write("switched to ");
@@ -119,13 +118,17 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             ush_copy(sh.user_name, (u64)sizeof(sh.user_name), ctx.user_name);
             sh.uid = ctx.uid;
             sh.gid = ctx.gid;
+            sh.role = ctx.role;
         }
     }
+
+    (void)ush_sync_user_from_kernel(&sh);
 
     if (sh.user_name[0] == '\0') {
         ush_copy(sh.user_name, (u64)sizeof(sh.user_name), "root");
         sh.uid = 0ULL;
         sh.gid = 0ULL;
+        sh.role = CLEONOS_USER_ROLE_ADMIN;
     }
 
     success = ush_cmd_su(&sh, ctx.arg);
@@ -141,11 +144,13 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             ret.exit_code = sh.exit_code;
         }
 
-        if (ush_streq(sh.user_name, ctx.user_name) == 0 || sh.uid != ctx.uid || sh.gid != ctx.gid) {
+        if (ush_streq(sh.user_name, ctx.user_name) == 0 || sh.uid != ctx.uid || sh.gid != ctx.gid ||
+            sh.role != ctx.role) {
             ret.flags |= USH_CMD_RET_FLAG_USER;
             ush_copy(ret.user_name, (u64)sizeof(ret.user_name), sh.user_name);
             ret.uid = sh.uid;
             ret.gid = sh.gid;
+            ret.role = sh.role;
         }
 
         (void)ush_command_ret_write(&ret);

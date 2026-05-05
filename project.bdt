@@ -27,11 +27,11 @@ READELF_FOR_TARGET = llvm-readelf
 DISK_IMAGE_MB = 64
 
 [config]
-KERNEL_CONFIG_FLAGS = -DCLKS_ARCH_X86_64=1,-DCLKS_CFG_EXTERNAL_PSF=1,-DCLKS_CFG_USER_SYSTEM_APP_PROBE=0,-DCLKS_CFG_EXEC_SERIAL_LOG=0,-DCLKS_CFG_SYSCALL_SERIAL_LOG=0,-DCLKS_CFG_SYSCALL_USERID_SERIAL_LOG=0,-DCLKS_CFG_LOG_OUTPUT_TTY=0,-DCLKS_CFG_LOG_OUTPUT_SERIAL=0,-DCLKS_CFG_LOG_OUTPUT_JOURNAL=0,-DCLKS_CFG_USC=0,-DCLKS_CFG_USC_SC_FS_MKDIR=0,-DCLKS_CFG_USC_SC_FS_WRITE=0,-DCLKS_CFG_USC_SC_FS_APPEND=0,-DCLKS_CFG_USC_SC_FS_REMOVE=0,-DCLKS_CFG_USC_SC_EXEC_PATH=0,-DCLKS_CFG_USC_SC_EXEC_PATHV=0,-DCLKS_CFG_USC_SC_EXEC_PATHV_IO=0,-DCLKS_CFG_USC_SC_SPAWN_PATH=0,-DCLKS_CFG_USC_SC_SPAWN_PATHV=0,-DCLKS_CFG_USC_SC_PROC_KILL=0,-DCLKS_CFG_USC_SC_SHUTDOWN=0,-DCLKS_CFG_USC_SC_RESTART=0
+KERNEL_CONFIG_FLAGS = -DCLKS_ARCH_X86_64=1,-DCLKS_CFG_EXTERNAL_PSF=1,-DCLKS_CFG_USER_SYSTEM_APP_PROBE=0,-DCLKS_CFG_EXEC_SERIAL_LOG=0,-DCLKS_CFG_SYSCALL_SERIAL_LOG=0,-DCLKS_CFG_SYSCALL_USERID_SERIAL_LOG=0,-DCLKS_CFG_LOG_OUTPUT_TTY=0,-DCLKS_CFG_LOG_OUTPUT_SERIAL=0,-DCLKS_CFG_LOG_OUTPUT_JOURNAL=0,-DCLKS_CFG_USC=0,-DCLKS_CFG_USER_SYSTEM=1,-DCLKS_CFG_USER_DISK_LOGIN=1,-DCLKS_CFG_USER_READ_POLICY=1,-DCLKS_CFG_USER_WRITE_POLICY=1,-DCLKS_CFG_USER_PRIVILEGE_POLICY=1,-DCLKS_CFG_USC_SC_FS_MKDIR=0,-DCLKS_CFG_USC_SC_FS_WRITE=0,-DCLKS_CFG_USC_SC_FS_APPEND=0,-DCLKS_CFG_USC_SC_FS_REMOVE=0,-DCLKS_CFG_USC_SC_EXEC_PATH=0,-DCLKS_CFG_USC_SC_EXEC_PATHV=0,-DCLKS_CFG_USC_SC_EXEC_PATHV_IO=0,-DCLKS_CFG_USC_SC_SPAWN_PATH=0,-DCLKS_CFG_USC_SC_SPAWN_PATHV=0,-DCLKS_CFG_USC_SC_PROC_KILL=0,-DCLKS_CFG_USC_SC_SHUTDOWN=0,-DCLKS_CFG_USC_SC_RESTART=0
 KERNEL_CFLAGS = -std=c11,-ffreestanding,-fno-stack-protector,-fno-builtin,-mgeneral-regs-only,-O2,-ffunction-sections,-fdata-sections,-fno-unwind-tables,-fno-asynchronous-unwind-tables,-fno-omit-frame-pointer,-g,-Wall,-Wextra,-Werror,-Wno-error,-I{root}/build/x86_64/generated/include,-I{root}/clks/include,{KERNEL_CONFIG_FLAGS},-m64,-mno-red-zone,-mcmodel=kernel,-fno-pic,-fno-pie
 KERNEL_CXXFLAGS = -std=c++17,-ffreestanding,-fno-stack-protector,-fno-builtin,-fno-exceptions,-fno-rtti,-fno-threadsafe-statics,-fno-use-cxa-atexit,-O2,-ffunction-sections,-fdata-sections,-fno-unwind-tables,-fno-asynchronous-unwind-tables,-fno-omit-frame-pointer,-g,-Wall,-Wextra,-Werror,-Wno-error,-I{root}/build/x86_64/generated/include,-I{root}/clks/include,{KERNEL_CONFIG_FLAGS},-m64,-mno-red-zone,-mcmodel=kernel,-fno-pic,-fno-pie
 KERNEL_ASFLAGS = -ffreestanding,-I{root}/build/x86_64/generated/include,-I{root}/clks/include,{KERNEL_CONFIG_FLAGS},-m64,-mno-red-zone,-mcmodel=kernel,-fno-pic,-fno-pie
-USER_CFLAGS = -std=c11,-ffreestanding,-fno-stack-protector,-fno-builtin,-mgeneral-regs-only,-O2,-ffunction-sections,-fdata-sections,-fno-unwind-tables,-fno-asynchronous-unwind-tables,-fno-omit-frame-pointer,-Wall,-Wextra,-Werror,-Wno-error,-I{root}/xiaobaios/include
+USER_CFLAGS = -std=c11,-ffreestanding,-fno-stack-protector,-fno-builtin,-mgeneral-regs-only,-O2,-ffunction-sections,-fdata-sections,-fno-unwind-tables,-fno-asynchronous-unwind-tables,-fno-omit-frame-pointer,-mno-red-zone,-Wall,-Wextra,-Werror,-Wno-error,-I{root}/xiaobaios/include
 USER_LDFLAGS = -nostdlib,--gc-sections,-z,max-page-size=0x1000
 KERNEL_LDFLAGS = -nostdlib,--gc-sections,-z,max-page-size=0x1000
 
@@ -63,7 +63,7 @@ always = true
 deps = setup-tools, kernel-version-header
 type = compile
 tool = {CC}
-sources = clks/arch/x86_64/startup/boot.c,clks/kernel/boot/limine/limine_requests.c,clks/kernel/core/interrupts.c,clks/kernel/core/kmain.c,clks/kernel/core/log.c,clks/kernel/core/panic.c,clks/kernel/core/scheduler.c,clks/kernel/core/service.c,clks/kernel/hal/audio/pcspeaker.c,clks/kernel/hal/serial/serial.c,clks/kernel/hal/video/font8x8.c,clks/kernel/hal/video/framebuffer.c,clks/kernel/hal/video/psf_font.c,clks/kernel/input/keyboard.c,clks/kernel/input/mouse.c,clks/kernel/interface/desktop.c,clks/kernel/interface/shell.c,clks/kernel/interface/tty.c,clks/kernel/interface/wm.c,clks/kernel/memory/heap.c,clks/kernel/memory/pmm.c,clks/kernel/runtime/driver.c,clks/kernel/runtime/elf64.c,clks/kernel/runtime/elfrunner.c,clks/kernel/runtime/exec.c,clks/kernel/runtime/kelf.c,clks/kernel/runtime/net.c,clks/kernel/runtime/pty.c,clks/kernel/runtime/syscall.c,clks/kernel/runtime/userland.c,clks/kernel/storage/disk.c,clks/kernel/storage/fs.c,clks/kernel/storage/ramdisk.c,clks/kernel/support/libc_compat.c,clks/kernel/support/string.c,clks/third_party/miniz/miniz_support.c,clks/third_party/miniz/miniz_tdef.c,clks/third_party/qrcodegen/qrcodegen.c
+sources = clks/arch/x86_64/startup/boot.c,clks/kernel/boot/limine/limine_requests.c,clks/kernel/core/interrupts.c,clks/kernel/core/kmain.c,clks/kernel/core/log.c,clks/kernel/core/panic.c,clks/kernel/core/scheduler.c,clks/kernel/core/service.c,clks/kernel/hal/audio/pcspeaker.c,clks/kernel/hal/serial/serial.c,clks/kernel/hal/video/font8x8.c,clks/kernel/hal/video/framebuffer.c,clks/kernel/hal/video/psf_font.c,clks/kernel/input/keyboard.c,clks/kernel/input/mouse.c,clks/kernel/interface/desktop.c,clks/kernel/interface/shell.c,clks/kernel/interface/tty.c,clks/kernel/interface/wm.c,clks/kernel/memory/heap.c,clks/kernel/memory/pmm.c,clks/kernel/memory/vm.c,clks/kernel/runtime/driver.c,clks/kernel/runtime/elf64.c,clks/kernel/runtime/elfrunner.c,clks/kernel/runtime/exec.c,clks/kernel/runtime/kelf.c,clks/kernel/runtime/net.c,clks/kernel/runtime/pty.c,clks/kernel/runtime/syscall.c,clks/kernel/runtime/user.c,clks/kernel/runtime/userland.c,clks/kernel/storage/disk.c,clks/kernel/storage/fs.c,clks/kernel/storage/ramdisk.c,clks/kernel/support/libc_compat.c,clks/kernel/support/string.c,clks/third_party/miniz/miniz_support.c,clks/third_party/miniz/miniz_tdef.c,clks/third_party/qrcodegen/qrcodegen.c
 output = {root}/build/x86_64/obj
 cflags = {KERNEL_CFLAGS}
 
@@ -123,6 +123,8 @@ cflags = {USER_CFLAGS}
 ldflags = {USER_LDFLAGS}
 skip_apps = xde_terminal
 app.xde.cflags = -Wno-error=unused-function
+app.xsh.sources = {root}/xiaobaios/apps/user/cleonos_user.c
+app.install2disk.sources = {root}/xiaobaios/apps/user/cleonos_user.c
 
 [target.generated-assets]
 deps = setup-tools
@@ -135,7 +137,7 @@ always = true
 [target.ramdisk-root]
 deps = userapps, kernel-symbols, generated-assets
 type = command
-command = {SH_TOOL} -c 'set -e; rm -rf build/x86_64/ramdisk_root; mkdir -p build/x86_64/ramdisk_root/system/etc build/x86_64/ramdisk_root/shell build/x86_64/ramdisk_root/driver build/x86_64/ramdisk_root/dev build/x86_64/ramdisk_root/home build/x86_64/ramdisk_root/temp; [ ! -d ramdisk ] || cp -a ramdisk/. build/x86_64/ramdisk_root/; cp fonts/xde.ttf build/x86_64/ramdisk_root/system/xde.ttf; cp build/x86_64/generated/tty.psf build/x86_64/ramdisk_root/system/tty.psf; cp build/x86_64/kernel.sym build/x86_64/ramdisk_root/system/kernel.sym; for app in build/x86_64/xiaobaios_user/apps/*.elf; do name=$(basename "$app" .elf); if [ "$name" = hello ]; then cp "$app" build/x86_64/ramdisk_root/; elif case "$name" in *drv) true;; *) false;; esac; then cp "$app" build/x86_64/ramdisk_root/driver/; else cp "$app" build/x86_64/ramdisk_root/shell/; fi; if [ "$name" = xsh ]; then cp "$app" build/x86_64/ramdisk_root/shell/shell.elf; fi; done'
+command = {SH_TOOL} -c 'set -e; rm -rf build/x86_64/ramdisk_root; mkdir -p build/x86_64/ramdisk_root/system/etc build/x86_64/ramdisk_root/system/install build/x86_64/ramdisk_root/shell build/x86_64/ramdisk_root/driver build/x86_64/ramdisk_root/dev build/x86_64/ramdisk_root/home build/x86_64/ramdisk_root/temp; [ ! -d ramdisk ] || cp -a ramdisk/. build/x86_64/ramdisk_root/; cp fonts/xde.ttf build/x86_64/ramdisk_root/system/xde.ttf; cp build/x86_64/generated/tty.psf build/x86_64/ramdisk_root/system/tty.psf; cp build/x86_64/kernel.sym build/x86_64/ramdisk_root/system/kernel.sym; cp build/x86_64/clks_kernel.elf build/x86_64/ramdisk_root/system/install/clks_kernel.elf; if [ -f limine/limine-bios.sys ]; then ldir=limine; else ldir=limine/bin; fi; cp "$ldir"/limine-bios.sys build/x86_64/ramdisk_root/system/install/limine-bios.sys; cp "$ldir"/limine-bios-hdd.bin build/x86_64/ramdisk_root/system/install/limine-bios-hdd.bin; cp configs/limine-harddisk.conf build/x86_64/ramdisk_root/system/install/limine-harddisk.conf; for app in build/x86_64/xiaobaios_user/apps/*.elf; do name=$(basename "$app" .elf); if [ "$name" = hello ]; then cp "$app" build/x86_64/ramdisk_root/; elif case "$name" in *drv) true;; *) false;; esac; then cp "$app" build/x86_64/ramdisk_root/driver/; else cp "$app" build/x86_64/ramdisk_root/shell/; fi; if [ "$name" = xsh ]; then cp "$app" build/x86_64/ramdisk_root/shell/shell.elf; fi; done'
 cache = false
 always = true
 
@@ -165,6 +167,20 @@ always = true
 deps = iso, disk-image
 type = command
 command = {QEMU_X86_64} -M pc -m 1024M -cdrom {root}/build/XiaoBaiOS-x86_64.iso -drive file={root}/build/xiaobaios_disk.img,format=raw,if=none,id=xiaobaidisk,media=disk -device ide-hd,drive=xiaobaidisk,bus=ide.0 -serial stdio
+cache = false
+always = true
+
+[target.run-ramdisk]
+deps = iso
+type = command
+command = {QEMU_X86_64} -M pc -m 1024M -cdrom {root}/build/XiaoBaiOS-x86_64.iso -serial stdio
+cache = false
+always = true
+
+[target.run-hardboot]
+deps = setup-tools
+type = command
+command = {SH_TOOL} -c 'if [ ! -f "{root}/build/xiaobaios_disk.img" ]; then echo "run-hardboot: missing build/xiaobaios_disk.img; run make run and execute install2disk first"; exit 1; fi; {QEMU_X86_64} -M pc -m 1024M -boot order=c -drive file={root}/build/xiaobaios_disk.img,format=raw,if=none,id=xiaobaidisk,media=disk -device ide-hd,drive=xiaobaidisk,bus=ide.0 -serial stdio'
 cache = false
 always = true
 

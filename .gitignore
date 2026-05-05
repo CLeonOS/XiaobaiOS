@@ -1,5 +1,6 @@
 build/
 build-cmake*/
+CLeonOS上游代码/
 .codex
 *.iso
 *.tar

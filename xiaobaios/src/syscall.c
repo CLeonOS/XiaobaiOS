@@ -16,6 +16,14 @@ u64 cleonos_sys_timer_ticks(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_TIMER_TICKS, 0ULL, 0ULL, 0ULL);
 }
 
+u64 cleonos_sys_timer_hz(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_TIMER_HZ, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_time_ms(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_TIME_MS, 0ULL, 0ULL, 0ULL);
+}
+
 u64 cleonos_sys_task_count(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_TASK_COUNT, 0ULL, 0ULL, 0ULL);
 }
@@ -209,6 +217,10 @@ u64 cleonos_sys_exit(u64 status) {
 
 u64 cleonos_sys_sleep_ticks(u64 ticks) {
     return cleonos_syscall(CLEONOS_SYSCALL_SLEEP_TICKS, ticks, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_sleep_ms(u64 ms) {
+    return cleonos_syscall(CLEONOS_SYSCALL_SLEEP_MS, ms, 0ULL, 0ULL);
 }
 
 u64 cleonos_sys_yield(void) {
@@ -412,6 +424,14 @@ u64 cleonos_sys_disk_write_sector(u64 lba, const void *sector_data) {
     return cleonos_syscall(CLEONOS_SYSCALL_DISK_WRITE_SECTOR, lba, (u64)sector_data, 0ULL);
 }
 
+u64 cleonos_sys_disk_fsck_fat32(u64 flags, cleonos_disk_fsck_result *out_result) {
+    return cleonos_syscall(CLEONOS_SYSCALL_DISK_FSCK_FAT32, flags, (u64)out_result, 0ULL);
+}
+
+u64 cleonos_sys_sysinfo(cleonos_sysinfo *out_info) {
+    return cleonos_syscall(CLEONOS_SYSCALL_SYSINFO, (u64)out_info, (u64)sizeof(cleonos_sysinfo), 0ULL);
+}
+
 u64 cleonos_sys_net_available(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_NET_AVAILABLE, 0ULL, 0ULL, 0ULL);
 }
@@ -458,6 +478,10 @@ u64 cleonos_sys_net_tcp_recv(cleonos_net_tcp_recv_req *req) {
 
 u64 cleonos_sys_net_tcp_close(u64 poll_budget) {
     return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_CLOSE, poll_budget, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_net_tcp_last_error(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_NET_TCP_LAST_ERROR, 0ULL, 0ULL, 0ULL);
 }
 
 u64 cleonos_sys_mouse_state(cleonos_mouse_state *out_state) {
@@ -510,4 +534,91 @@ u64 cleonos_sys_wm_snapshot(u64 window_id, cleonos_wm_snapshot *out_snapshot, u6
 
 u64 cleonos_sys_pty_open(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_PTY_OPEN, 0ULL, 0ULL, 0ULL);
+}
+
+void *cleonos_sys_user_heap_alloc(u64 size) {
+    return (void *)(usize)cleonos_syscall(CLEONOS_SYSCALL_USER_HEAP_ALLOC, size, 0ULL, 0ULL);
+}
+
+void *cleonos_sys_vm_alloc(u64 size, u64 flags) {
+    return (void *)(usize)cleonos_syscall(CLEONOS_SYSCALL_VM_ALLOC, size, flags, 0ULL);
+}
+
+u64 cleonos_sys_vm_free(void *ptr, u64 size) {
+    return cleonos_syscall(CLEONOS_SYSCALL_VM_FREE, (u64)(usize)ptr, size, 0ULL);
+}
+
+u64 cleonos_sys_user_current(cleonos_user_info *out_info) {
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_CURRENT, (u64)(usize)out_info, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_user_login(const char *name, const char *password, cleonos_user_info *out_info) {
+    cleonos_user_login_req req;
+
+    req.name_ptr = (u64)(usize)name;
+    req.password_ptr = (u64)(usize)password;
+    req.out_info_ptr = (u64)(usize)out_info;
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_LOGIN, (u64)(usize)&req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_user_logout(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_LOGOUT, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_user_count(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_COUNT, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_user_at(u64 index, cleonos_user_info *out_info) {
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_AT, index, (u64)(usize)out_info, 0ULL);
+}
+
+u64 cleonos_sys_user_add(const char *name, const char *password, u64 role) {
+    cleonos_user_add_req req;
+
+    req.name_ptr = (u64)(usize)name;
+    req.password_ptr = (u64)(usize)password;
+    req.role = role;
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_ADD, (u64)(usize)&req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_user_passwd(const char *name, const char *old_password, const char *new_password) {
+    cleonos_user_passwd_req req;
+
+    req.name_ptr = (u64)(usize)name;
+    req.old_password_ptr = (u64)(usize)old_password;
+    req.new_password_ptr = (u64)(usize)new_password;
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_PASSWD, (u64)(usize)&req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_user_set_role(const char *name, u64 role) {
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_SET_ROLE, (u64)(usize)name, role, 0ULL);
+}
+
+u64 cleonos_sys_user_remove(const char *name) {
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_REMOVE, (u64)(usize)name, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_user_is_admin(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_USER_IS_ADMIN, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_driver_count(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_DRIVER_COUNT, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_driver_info(u64 index, cleonos_driver_info *out_info, u64 out_size) {
+    return cleonos_syscall(CLEONOS_SYSCALL_DRIVER_INFO, index, (u64)out_info, out_size);
+}
+
+u64 cleonos_sys_driver_load(const char *path) {
+    return cleonos_syscall(CLEONOS_SYSCALL_DRIVER_LOAD, (u64)path, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_driver_unload(const char *name_or_path) {
+    return cleonos_syscall(CLEONOS_SYSCALL_DRIVER_UNLOAD, (u64)name_or_path, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_driver_reload(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_DRIVER_RELOAD, 0ULL, 0ULL, 0ULL);
 }

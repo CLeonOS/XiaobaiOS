@@ -20,7 +20,7 @@ typedef long long i64;
 #define USH_DMESG_DEFAULT 64ULL
 #define USH_DMESG_LINE_MAX 256ULL
 #define USH_COPY_MAX 65536U
-#define USH_USER_NAME_MAX 96ULL
+#define USH_USER_NAME_MAX CLEONOS_USER_NAME_MAX
 
 #define USH_CMD_CTX_PATH "/temp/.ush_cmd_ctx.bin"
 #define USH_CMD_RET_PATH "/temp/.ush_cmd_ret.bin"
@@ -38,6 +38,7 @@ typedef struct ush_state {
     char user_name[USH_USER_NAME_MAX];
     u64 uid;
     u64 gid;
+    u64 role;
 
     char history[USH_HISTORY_MAX][USH_LINE_MAX];
     u64 history_count;
@@ -61,6 +62,7 @@ typedef struct ush_cmd_ctx {
     char user_name[USH_USER_NAME_MAX];
     u64 uid;
     u64 gid;
+    u64 role;
 } ush_cmd_ctx;
 
 typedef struct ush_cmd_ret {
@@ -70,6 +72,7 @@ typedef struct ush_cmd_ret {
     char user_name[USH_USER_NAME_MAX];
     u64 uid;
     u64 gid;
+    u64 role;
 } ush_cmd_ret;
 
 typedef struct ush_account_record {
@@ -85,6 +88,7 @@ extern u64 ush_pipeline_stdin_len;
 
 void ush_zero(void *ptr, u64 size);
 void ush_init_state(ush_state *sh);
+int ush_sync_user_from_kernel(ush_state *sh);
 
 u64 ush_strlen(const char *str);
 int ush_streq(const char *left, const char *right);

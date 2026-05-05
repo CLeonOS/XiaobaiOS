@@ -52,5 +52,6 @@ u64 _start(void) {
     }
 
     code = cleonos_app_main((int)argc, argv_ptrs, env_ptrs);
+    cleonos_stdio_flush_all();
     return (u64)code;
 }

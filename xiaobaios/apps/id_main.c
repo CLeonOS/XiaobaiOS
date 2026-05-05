@@ -1,26 +1,16 @@
 #include "cmd_runtime.h"
 
 static int ush_cmd_id(const ush_state *sh) {
-    ush_account_record user_rec;
-    char group_name[USH_USER_NAME_MAX];
+    const char *role_name;
 
     if (sh == (const ush_state *)0) {
         return 0;
     }
 
-    ush_zero(&user_rec, (u64)sizeof(user_rec));
-    if (ush_account_lookup_passwd_by_uid(sh->uid, &user_rec) == 0) {
-        ush_copy(user_rec.name, (u64)sizeof(user_rec.name), sh->user_name);
-        user_rec.uid = sh->uid;
-        user_rec.gid = sh->gid;
-    }
+    role_name = (sh->role == CLEONOS_USER_ROLE_ADMIN) ? "admin" : "user";
 
-    if (ush_group_lookup_name_by_gid(user_rec.gid, group_name, (u64)sizeof(group_name)) == 0) {
-        ush_copy(group_name, (u64)sizeof(group_name), user_rec.gid == 0ULL ? "root" : "users");
-    }
-
-    printf("uid=%llu(%s) gid=%llu(%s)\n", (unsigned long long)user_rec.uid, user_rec.name,
-           (unsigned long long)user_rec.gid, group_name);
+    printf("uid=%llu(%s) gid=%llu(%s) role=%llu(%s)\n", (unsigned long long)sh->uid, sh->user_name,
+           (unsigned long long)sh->gid, sh->user_name, (unsigned long long)sh->role, role_name);
     return 1;
 }
 
@@ -51,13 +41,17 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             ush_copy(sh.user_name, (u64)sizeof(sh.user_name), ctx.user_name);
             sh.uid = ctx.uid;
             sh.gid = ctx.gid;
+            sh.role = ctx.role;
         }
     }
+
+    (void)ush_sync_user_from_kernel(&sh);
 
     if (sh.user_name[0] == '\0') {
         ush_copy(sh.user_name, (u64)sizeof(sh.user_name), "root");
         sh.uid = 0ULL;
         sh.gid = 0ULL;
+        sh.role = CLEONOS_USER_ROLE_ADMIN;
     }
 
     success = ush_cmd_id(&sh);
@@ -73,11 +67,13 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             ret.exit_code = sh.exit_code;
         }
 
-        if (ush_streq(sh.user_name, ctx.user_name) == 0 || sh.uid != ctx.uid || sh.gid != ctx.gid) {
+        if (ush_streq(sh.user_name, ctx.user_name) == 0 || sh.uid != ctx.uid || sh.gid != ctx.gid ||
+            sh.role != ctx.role) {
             ret.flags |= USH_CMD_RET_FLAG_USER;
             ush_copy(ret.user_name, (u64)sizeof(ret.user_name), sh.user_name);
             ret.uid = sh.uid;
             ret.gid = sh.gid;
+            ret.role = sh.role;
         }
 
         (void)ush_command_ret_write(&ret);

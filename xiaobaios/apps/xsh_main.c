@@ -1,10 +1,11 @@
 #include "cmd_runtime.h"
-
 #define XSH_LINE_MAX 192ULL
 #define XSH_CMD_MAX 48ULL
 #define XSH_ARG_MAX 176ULL
 #define XSH_PATH_MAX 256ULL
 #define XSH_PATH_ENV_MAX 256ULL
+#define XSH_ENV_MAX 512ULL
+#define XSH_PROC_SEEN_MAX 64ULL
 
 #define XSH_ANSI_RESET "\x1B[0m"
 #define XSH_ANSI_GREEN_BOLD "\x1B[1;32m"
@@ -107,13 +108,88 @@ static int xsh_status_is_signal(u64 status) {
     return ((status & (1ULL << 63)) != 0ULL) ? 1 : 0;
 }
 
-static void xsh_print_status(u64 status) {
+static int xsh_pid_seen(const u64 *seen, u64 seen_count, u64 pid) {
+    u64 i;
+
+    if (seen == (const u64 *)0 || pid == 0ULL) {
+        return 0;
+    }
+
+    for (i = 0ULL; i < seen_count; i++) {
+        if (seen[i] == pid) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static u64 xsh_capture_proc_seen(u64 *seen, u64 seen_max) {
+    u64 count = cleonos_sys_proc_count();
+    u64 stored = 0ULL;
+    u64 i;
+
+    if (seen == (u64 *)0 || seen_max == 0ULL) {
+        return 0ULL;
+    }
+
+    for (i = 0ULL; i < count && stored < seen_max; i++) {
+        u64 pid = 0ULL;
+        if (cleonos_sys_proc_pid_at(i, &pid) != 0ULL && pid != 0ULL) {
+            seen[stored++] = pid;
+        }
+    }
+
+    return stored;
+}
+
+static int xsh_find_new_proc_snapshot(const char *path, const u64 *seen, u64 seen_count, cleonos_proc_snapshot *out) {
+    u64 count = cleonos_sys_proc_count();
+    u64 best_exit_tick = 0ULL;
+    int found = 0;
+    u64 i;
+
+    if (path == (const char *)0 || out == (cleonos_proc_snapshot *)0) {
+        return 0;
+    }
+
+    ush_zero(out, (u64)sizeof(*out));
+    for (i = 0ULL; i < count; i++) {
+        u64 pid = 0ULL;
+        cleonos_proc_snapshot snap;
+
+        if (cleonos_sys_proc_pid_at(i, &pid) == 0ULL || pid == 0ULL || xsh_pid_seen(seen, seen_count, pid) != 0) {
+            continue;
+        }
+
+        ush_zero(&snap, (u64)sizeof(snap));
+        if (cleonos_sys_proc_snapshot(pid, &snap, (u64)sizeof(snap)) == 0ULL) {
+            continue;
+        }
+
+        if (ush_streq(snap.path, path) == 0) {
+            continue;
+        }
+
+        if (found == 0 || snap.exited_tick >= best_exit_tick) {
+            *out = snap;
+            best_exit_tick = snap.exited_tick;
+            found = 1;
+        }
+    }
+
+    return found;
+}
+
+static void xsh_print_status(u64 status, const cleonos_proc_snapshot *snap) {
     if (xsh_status_is_signal(status) != 0) {
         u64 signal = status & 0xFFULL;
         u64 vector = (status >> 8) & 0xFFULL;
         u64 err = (status >> 16) & 0xFFFFULL;
-        printf("xsh: process terminated: signal=%llu vector=%llu error=0x%llX\n", (unsigned long long)signal,
-               (unsigned long long)vector, (unsigned long long)err);
+        u64 rip = (snap != (const cleonos_proc_snapshot *)0) ? snap->last_fault_rip : 0ULL;
+        printf("xsh: process terminated: signal=%llu vector=%llu error=0x%llX rip=0x%llX\n",
+               (unsigned long long)signal, (unsigned long long)vector, (unsigned long long)err,
+               (unsigned long long)rip);
         return;
     }
 
@@ -133,16 +209,39 @@ static int xsh_write_ret(const ush_state *sh) {
     xsh_copy(ret.user_name, (u64)sizeof(ret.user_name), sh->user_name);
     ret.uid = sh->uid;
     ret.gid = sh->gid;
+    ret.role = sh->role;
 
     return ush_command_ret_write(&ret);
 }
 
+static int xsh_env_append(char *buf, u64 buf_size, const char *text) {
+    u64 len;
+    u64 i = 0ULL;
+
+    if (buf == (char *)0 || text == (const char *)0 || buf_size == 0ULL) {
+        return 0;
+    }
+
+    len = ush_strlen(buf);
+    while (text[i] != '\0') {
+        if (len + 1ULL >= buf_size) {
+            return 0;
+        }
+        buf[len++] = text[i++];
+    }
+    buf[len] = '\0';
+    return 1;
+}
+
 static int xsh_run_external(const ush_state *sh, const char *cmd, const char *arg, const char *path_env,
-                            int inherit_stdio, u64 *out_status) {
+                            int inherit_stdio, u64 *out_status, cleonos_proc_snapshot *out_snapshot) {
     char full_path[XSH_PATH_MAX];
     char ctx_cmd[XSH_CMD_MAX];
     char argv_line[XSH_LINE_MAX];
-    char env_line[XSH_PATH_ENV_MAX + 32ULL];
+    char env_line[XSH_ENV_MAX];
+    char home_line[USH_PATH_MAX];
+    u64 seen[XSH_PROC_SEEN_MAX];
+    u64 seen_count;
     const char *search = path_env;
     u64 status = (u64)-1;
 
@@ -212,12 +311,30 @@ static int xsh_run_external(const ush_state *sh, const char *cmd, const char *ar
         return 0;
     }
 
-    ush_zero(env_line, (u64)sizeof(env_line));
-    if (path_env != (const char *)0 && path_env[0] != '\0') {
-        (void)snprintf(env_line, (unsigned long)sizeof(env_line), "PATH=%s", path_env);
-    } else {
-        xsh_copy(env_line, (u64)sizeof(env_line), "PATH=/shell");
+    (void)snprintf(home_line, (unsigned long)sizeof(home_line), "/home/%s", sh->user_name);
+
+    env_line[0] = '\0';
+    if (xsh_env_append(env_line, (u64)sizeof(env_line), "PWD=") == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), sh->cwd) == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), ";PATH=") == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line),
+                       (path_env != (const char *)0 && path_env[0] != '\0') ? path_env : "/shell") == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), ";CMD=") == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), ctx_cmd) == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), ";USER=") == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), sh->user_name) == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), ";HOME=") == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), home_line) == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line), ";ROLE=") == 0 ||
+        xsh_env_append(env_line, (u64)sizeof(env_line),
+                       (sh->role == CLEONOS_USER_ROLE_ADMIN) ? "admin" : "user") == 0) {
+        return 0;
     }
+
+    (void)fflush(1);
+    (void)fflush(2);
+
+    seen_count = xsh_capture_proc_seen(seen, XSH_PROC_SEEN_MAX);
 
     if (inherit_stdio != 0) {
         status = cleonos_sys_exec_pathv_io(full_path, argv_line, env_line, 0ULL, 1ULL, 2ULL);
@@ -230,6 +347,9 @@ static int xsh_run_external(const ush_state *sh, const char *cmd, const char *ar
     }
 
     *out_status = status;
+    if (out_snapshot != (cleonos_proc_snapshot *)0) {
+        (void)xsh_find_new_proc_snapshot(full_path, seen, seen_count, out_snapshot);
+    }
     return 1;
 }
 
@@ -251,7 +371,7 @@ static void xsh_prompt(const ush_state *sh) {
     ush_write(sh->cwd);
     ush_write(XSH_ANSI_RESET);
     ush_write("] ");
-    ush_write((sh->uid == 0ULL) ? "# " : "$ ");
+    ush_write((sh->role == CLEONOS_USER_ROLE_ADMIN) ? "# " : "$ ");
 }
 
 static int xsh_read_line(char *out, u64 out_size, int echo_input) {
@@ -293,6 +413,8 @@ static int xsh_read_line(char *out, u64 out_size, int echo_input) {
             out[len] = '\0';
             if (echo_input != 0) {
                 ush_write_char('\n');
+                (void)fflush(1);
+                (void)fflush(2);
             }
             return 1;
         }
@@ -343,6 +465,170 @@ static int xsh_build_batch_line(int argc, char **argv, char *out, u64 out_size) 
     return (len > 0ULL) ? 1 : 0;
 }
 
+static char xsh_read_key_blocking(void) {
+    (void)fflush(1);
+    (void)fflush(2);
+
+    for (;;) {
+        u64 ch = cleonos_sys_kbd_get_char();
+
+        if (ch != 0ULL && ch != (u64)-1) {
+            return (char)(unsigned char)ch;
+        }
+
+        (void)cleonos_sys_yield();
+    }
+}
+
+static void xsh_apply_user_info(ush_state *sh, const cleonos_user_info *info) {
+    if (sh == (ush_state *)0 || info == (const cleonos_user_info *)0 || info->name[0] == '\0') {
+        return;
+    }
+
+    xsh_copy(sh->user_name, (u64)sizeof(sh->user_name), info->name);
+    sh->uid = info->uid;
+    sh->gid = info->uid;
+    sh->role = info->role;
+
+    if (info->home[0] == '/' && cleonos_sys_fs_stat_type(info->home) == 2ULL) {
+        xsh_copy(sh->cwd, (u64)sizeof(sh->cwd), info->home);
+    }
+}
+
+static int xsh_read_secret(const char *prompt, char *out, u64 out_size) {
+    u64 len = 0ULL;
+
+    if (out == (char *)0 || out_size < 2ULL) {
+        return 0;
+    }
+
+    out[0] = '\0';
+    ush_write(prompt);
+
+    for (;;) {
+        char ch = xsh_read_key_blocking();
+
+        if (ch == '\r') {
+            continue;
+        }
+
+        if (ch == '\n') {
+            out[len] = '\0';
+            ush_write_char('\n');
+            return 1;
+        }
+
+        if (ch == '\b' || ch == 0x7F) {
+            if (len > 0ULL) {
+                len--;
+            }
+            continue;
+        }
+
+        if (isprint((unsigned char)ch) != 0 && len + 1ULL < out_size) {
+            out[len++] = ch;
+        }
+    }
+}
+
+static int xsh_read_login_name(const char *prompt, char *out, u64 out_size) {
+    u64 len = 0ULL;
+
+    if (out == (char *)0 || out_size < 2ULL) {
+        return 0;
+    }
+
+    out[0] = '\0';
+    ush_write(prompt);
+
+    for (;;) {
+        char ch = xsh_read_key_blocking();
+
+        if (ch == '\r') {
+            continue;
+        }
+
+        if (ch == '\n') {
+            out[len] = '\0';
+            ush_write_char('\n');
+            return 1;
+        }
+
+        if (ch == '\b' || ch == 0x7F) {
+            if (len > 0ULL) {
+                len--;
+                out[len] = '\0';
+                ush_write("\b \b");
+            }
+            continue;
+        }
+
+        if (isprint((unsigned char)ch) != 0 && len + 1ULL < out_size) {
+            out[len++] = ch;
+            ush_write_char(ch);
+        }
+    }
+}
+
+static int xsh_login_if_needed(ush_state *sh, int batch_mode) {
+    cleonos_user_info info;
+
+    if (sh == (ush_state *)0) {
+        return 0;
+    }
+
+    ush_zero(&info, (u64)sizeof(info));
+    if (cleonos_sys_user_current(&info) == 0ULL) {
+        return 1;
+    }
+
+    if (info.disk_login_required == 0ULL) {
+        if (info.logged_in != 0ULL) {
+            xsh_apply_user_info(sh, &info);
+        }
+        return 1;
+    }
+
+    if (info.logged_in != 0ULL) {
+        xsh_apply_user_info(sh, &info);
+        return 1;
+    }
+
+    if (batch_mode != 0) {
+        ush_writeln("xsh: disk login required");
+        return 0;
+    }
+
+    ush_writeln("XiaoBaiOS disk login");
+    for (;;) {
+        char name[CLEONOS_USER_NAME_MAX];
+        char password[96];
+        cleonos_user_info login_info;
+
+        if (xsh_read_login_name("login: ", name, (u64)sizeof(name)) == 0) {
+            continue;
+        }
+        ush_trim_line(name);
+        if (name[0] == '\0') {
+            continue;
+        }
+
+        if (xsh_read_secret("password: ", password, (u64)sizeof(password)) == 0) {
+            continue;
+        }
+
+        ush_zero(&login_info, (u64)sizeof(login_info));
+        if (cleonos_sys_user_login(name, password, &login_info) != 0ULL) {
+            xsh_apply_user_info(sh, &login_info);
+            ush_write("login: welcome ");
+            ush_writeln(login_info.name);
+            return 1;
+        }
+
+        ush_writeln("login: invalid username or password");
+    }
+}
+
 int cleonos_app_main(int argc, char **argv, char **envp) {
     ush_cmd_ctx ctx;
     ush_state sh;
@@ -369,6 +655,10 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
     }
     if (xsh_env_lookup(envp, "XSH_BATCH") != (const char *)0) {
         batch_mode = 1;
+    }
+
+    if (xsh_login_if_needed(&sh, batch_mode) == 0) {
+        return 1;
     }
 
     if (has_context != 0) {
@@ -400,14 +690,19 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
 
         ush_parse_line(line, cmd, (u64)sizeof(cmd), arg, (u64)sizeof(arg));
 
-        if (xsh_run_external(&sh, cmd, arg, path_env, batch_mode, &status) == 0) {
-            ush_write("xsh: command not found: ");
-            ush_writeln(cmd);
-            continue;
-        }
+        {
+            cleonos_proc_snapshot proc_snap;
 
-        if (status != 0ULL) {
-            xsh_print_status(status);
+            ush_zero(&proc_snap, (u64)sizeof(proc_snap));
+            if (xsh_run_external(&sh, cmd, arg, path_env, batch_mode, &status, &proc_snap) == 0) {
+                ush_write("xsh: command not found: ");
+                ush_writeln(cmd);
+                continue;
+            }
+
+            if (status != 0ULL) {
+                xsh_print_status(status, (proc_snap.pid != 0ULL) ? &proc_snap : (const cleonos_proc_snapshot *)0);
+            }
         }
 
         {
@@ -420,6 +715,7 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
                     xsh_copy(sh.user_name, (u64)sizeof(sh.user_name), ret.user_name);
                     sh.uid = ret.uid;
                     sh.gid = ret.gid;
+                    sh.role = ret.role;
                 }
                 if ((ret.flags & USH_CMD_RET_FLAG_EXIT) != 0ULL) {
                     exit_requested = 1;

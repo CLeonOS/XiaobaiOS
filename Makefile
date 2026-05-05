@@ -9,7 +9,7 @@ BDT_CFLAGS ?= -std=c11 -O2 -Wall -Wextra -D_XOPEN_SOURCE=700
 JOBS ?= 4
 PYTHON ?= python3
 
-.PHONY: all bdt setup setup-tools kernel kernel-symbols userapps ramdisk-root ramdisk disk-image iso run debug menuconfig clean clean-all clean-drive-image list scan graph doctor help
+.PHONY: all bdt setup setup-tools kernel kernel-symbols userapps ramdisk-root ramdisk disk-image iso run run-ramdisk run-hardboot debug menuconfig clean clean-all clean-drive-image list scan graph doctor help
 
 all: iso
 
@@ -18,7 +18,7 @@ bdt:
 
 setup: setup-tools
 
-setup-tools kernel kernel-symbols userapps ramdisk-root ramdisk disk-image iso run debug clean clean-all clean-drive-image list scan graph doctor: bdt
+setup-tools kernel kernel-symbols userapps ramdisk-root ramdisk disk-image iso run run-ramdisk run-hardboot debug clean clean-all clean-drive-image list scan graph doctor: bdt
 > @case "$@" in \
 >   list) "$(BDT)" --project "$(BDT_PROJECT)" --list ;; \
 >   scan) "$(BDT)" --project "$(BDT_PROJECT)" --scan ;; \
@@ -45,6 +45,8 @@ help:
 > @echo "  make disk-image"
 > @echo "  make iso"
 > @echo "  make run"
+> @echo "  make run-ramdisk"
+> @echo "  make run-hardboot"
 > @echo "  make debug"
 > @echo "  make clean"
 > @echo "  make clean-all"

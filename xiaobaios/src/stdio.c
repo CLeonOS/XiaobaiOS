@@ -7,9 +7,14 @@ typedef unsigned long clio_size_t;
 #define CLIO_SINK_FD 1
 #define CLIO_SINK_BUF 2
 #define CLIO_CAPTURE_PATH_MAX 192UL
+#define CLIO_STDIO_BUF_SIZE 1024UL
 
 static char clio_capture_path[CLIO_CAPTURE_PATH_MAX];
 static int clio_capture_enabled;
+static char clio_stdout_buf[CLIO_STDIO_BUF_SIZE];
+static char clio_stderr_buf[CLIO_STDIO_BUF_SIZE];
+static clio_size_t clio_stdout_len;
+static clio_size_t clio_stderr_len;
 
 struct clio_sink {
     int mode;
@@ -106,6 +111,136 @@ static int clio_write_all_fd(int fd, const char *text, clio_size_t len) {
     }
 
     return (int)len;
+}
+
+static int clio_raw_write_all_fd(int fd, const char *text, clio_size_t len) {
+    const char *cursor = text;
+    clio_size_t left = len;
+
+    if (fd < 0 || (text == (const char *)0 && len != 0UL)) {
+        return EOF;
+    }
+
+    while (left > 0UL) {
+        u64 wrote = cleonos_sys_fd_write((u64)fd, cursor, (u64)left);
+        clio_size_t progressed;
+
+        if (wrote == 0ULL || wrote == (u64)-1) {
+            return EOF;
+        }
+
+        progressed = (wrote > (u64)left) ? left : (clio_size_t)wrote;
+        cursor += progressed;
+        left -= progressed;
+    }
+
+    if (len > 0x7FFFFFFFUL) {
+        return 0x7FFFFFFF;
+    }
+
+    return (int)len;
+}
+
+static char *clio_stdio_buffer_for_fd(int fd, clio_size_t **out_len) {
+    if (out_len == (clio_size_t **)0) {
+        return (char *)0;
+    }
+
+    if (fd == 1) {
+        *out_len = &clio_stdout_len;
+        return clio_stdout_buf;
+    }
+
+    if (fd == 2) {
+        *out_len = &clio_stderr_len;
+        return clio_stderr_buf;
+    }
+
+    *out_len = (clio_size_t *)0;
+    return (char *)0;
+}
+
+static int clio_flush_stdio_fd(int fd) {
+    clio_size_t *buf_len;
+    char *buf = clio_stdio_buffer_for_fd(fd, &buf_len);
+    clio_size_t len;
+
+    if (buf == (char *)0 || buf_len == (clio_size_t *)0 || *buf_len == 0UL) {
+        return 0;
+    }
+
+    len = *buf_len;
+    *buf_len = 0UL;
+    return (clio_raw_write_all_fd(fd, buf, len) == EOF) ? EOF : 0;
+}
+
+static int clio_buffered_write_fd(int fd, const char *text, clio_size_t len) {
+    clio_size_t *buf_len;
+    char *buf;
+    clio_size_t offset = 0UL;
+
+    if ((fd != 1 && fd != 2) || clio_capture_enabled != 0) {
+        return clio_write_all_fd(fd, text, len);
+    }
+
+    if (text == (const char *)0 && len != 0UL) {
+        return EOF;
+    }
+
+    buf = clio_stdio_buffer_for_fd(fd, &buf_len);
+    if (buf == (char *)0 || buf_len == (clio_size_t *)0) {
+        return clio_write_all_fd(fd, text, len);
+    }
+
+    while (offset < len) {
+        clio_size_t space = CLIO_STDIO_BUF_SIZE - *buf_len;
+        clio_size_t chunk;
+
+        if (space == 0UL) {
+            if (clio_flush_stdio_fd(fd) == EOF) {
+                return EOF;
+            }
+            space = CLIO_STDIO_BUF_SIZE;
+        }
+
+        chunk = len - offset;
+        if (chunk > space) {
+            chunk = space;
+        }
+
+        if (chunk == CLIO_STDIO_BUF_SIZE && *buf_len == 0UL) {
+            if (clio_raw_write_all_fd(fd, text + offset, chunk) == EOF) {
+                return EOF;
+            }
+        } else {
+            clio_size_t i;
+            for (i = 0UL; i < chunk; i++) {
+                buf[*buf_len + i] = text[offset + i];
+            }
+            *buf_len += chunk;
+        }
+
+        offset += chunk;
+    }
+
+    if (len > 0x7FFFFFFFUL) {
+        return 0x7FFFFFFF;
+    }
+
+    return (int)len;
+}
+
+int fflush(int fd) {
+    if (fd == 1 || fd == 2) {
+        return clio_flush_stdio_fd(fd);
+    }
+
+    return 0;
+}
+
+void cleonos_stdio_flush_all(void) {
+    (void)fflush(1);
+    (void)fflush(2);
 }
 
 void cleonos_stdio_configure(char **envp) {
@@ -630,11 +765,14 @@ static int clio_vformat(struct clio_sink *sink, const char *fmt, va_list args) {
 
 int putchar(int ch) {
     char out = (char)(ch & 0xFF);
-    return (clio_write_all_fd(1, &out, 1UL) == EOF) ? EOF : (int)(unsigned char)out;
+    return (clio_buffered_write_fd(1, &out, 1UL) == EOF) ? EOF : (int)(unsigned char)out;
 }
 
 int getchar(void) {
     char ch = '\0';
+
+    (void)fflush(1);
+    (void)fflush(2);
 
     for (;;) {
         u64 got = cleonos_sys_fd_read(0ULL, &ch, 1ULL);
@@ -653,7 +791,7 @@ int getchar(void) {
 
 int fputc(int ch, int fd) {
     char out = (char)(ch & 0xFF);
-    return (clio_write_all_fd(fd, &out, 1UL) == EOF) ? EOF : (int)(unsigned char)out;
+    return (clio_buffered_write_fd(fd, &out, 1UL) == EOF) ? EOF : (int)(unsigned char)out;
 }
 
 int fgetc(int fd) {
@@ -661,6 +799,11 @@ int fgetc(int fd) {
 
     if (fd < 0) {
         return EOF;
+    }
+
+    if (fd == 0) {
+        (void)fflush(1);
+        (void)fflush(2);
     }
 
     for (;;) {
@@ -686,7 +829,7 @@ int fputs(const char *text, int fd) {
     }
 
     len = clio_strlen(text);
-    return clio_write_all_fd(fd, text, len);
+    return clio_buffered_write_fd(fd, text, len);
 }
 
 int puts(const char *text) {

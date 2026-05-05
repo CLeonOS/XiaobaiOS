@@ -52,7 +52,7 @@ typedef long long i64;
 #define XDE_USH_CMD_MAX 32ULL
 #define XDE_USH_ARG_MAX 160ULL
 #define XDE_USH_PATH_MAX 192ULL
-#define XDE_USH_USER_NAME_MAX 96ULL
+#define XDE_USH_USER_NAME_MAX CLEONOS_USER_NAME_MAX
 #define XDE_TTF_TAG(a, b, c, d)                                                                                       \
     ((((u32)(a)) << 24U) | (((u32)(b)) << 16U) | (((u32)(c)) << 8U) | ((u32)(d)))
 
@@ -120,6 +120,7 @@ struct xde_client {
     u64 terminal_ansi_len;
     u64 terminal_uid;
     u64 terminal_gid;
+    u64 terminal_role;
 };
 
 struct xde_ush_cmd_ctx {
@@ -129,6 +130,7 @@ struct xde_ush_cmd_ctx {
     char user_name[XDE_USH_USER_NAME_MAX];
     u64 uid;
     u64 gid;
+    u64 role;
 };
 
 struct xde_ush_cmd_ret {
@@ -138,6 +140,7 @@ struct xde_ush_cmd_ret {
     char user_name[XDE_USH_USER_NAME_MAX];
     u64 uid;
     u64 gid;
+    u64 role;
 };
 
 struct xde_ttf_table {
@@ -1567,6 +1570,7 @@ static void xde_terminal_bootstrap(struct xde_client *client) {
     xde_copy_text(client->terminal_user, XDE_USH_USER_NAME_MAX, "root");
     client->terminal_uid = 0ULL;
     client->terminal_gid = 0ULL;
+    client->terminal_role = CLEONOS_USER_ROLE_ADMIN;
     xde_terminal_push(client, "XiaoBaiOS XDE Terminal");
     xde_terminal_push(client, "Backend: official CLKS PTY");
 }
@@ -1595,7 +1599,7 @@ static void xde_terminal_format_prompt(const struct xde_client *client, char *ou
     }
 
     (void)snprintf(out, (unsigned long)out_size, "%s:%s%s ", client->terminal_user[0] != '\0' ? client->terminal_user : "root",
-                   cwd, client->terminal_uid == 0ULL ? "#" : "$");
+                   cwd, client->terminal_role == CLEONOS_USER_ROLE_ADMIN ? "#" : "$");
 }
 
 static void xde_terminal_split_command(const char *line, char *cmd, u64 cmd_size, char *arg, u64 arg_size) {
@@ -1874,6 +1878,7 @@ static int xde_terminal_write_command_context(struct xde_client *client, const c
                   client->terminal_user[0] != '\0' ? client->terminal_user : "root");
     ctx.uid = client->terminal_uid;
     ctx.gid = client->terminal_gid;
+    ctx.role = client->terminal_role;
 
     return (cleonos_sys_fs_write(XDE_USH_CMD_CTX_PATH, (const char *)&ctx, (u64)sizeof(ctx)) != 0ULL) ? 1 : 0;
 }
@@ -1896,6 +1901,7 @@ static void xde_terminal_apply_xsh_ret(struct xde_client *client) {
             xde_copy_text(client->terminal_user, XDE_USH_USER_NAME_MAX, ret.user_name);
             client->terminal_uid = ret.uid;
             client->terminal_gid = ret.gid;
+            client->terminal_role = ret.role;
         }
         if ((ret.flags & XDE_USH_CMD_RET_FLAG_EXIT) != 0ULL) {
             client->terminal_exited = 1;
@@ -2413,6 +2419,7 @@ static int xde_open_client(enum xde_client_type type, const char *title, u64 w, 
     xde_clients[i].terminal_ansi_len = 0ULL;
     xde_clients[i].terminal_uid = 0ULL;
     xde_clients[i].terminal_gid = 0ULL;
+    xde_clients[i].terminal_role = CLEONOS_USER_ROLE_ADMIN;
     xde_clients[i].terminal_cwd[0] = '\0';
     xde_clients[i].terminal_user[0] = '\0';
     xde_clients[i].terminal_ansi_buf[0] = '\0';

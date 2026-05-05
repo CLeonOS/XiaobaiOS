@@ -101,7 +101,27 @@ void ush_init_state(ush_state *sh) {
     ush_copy(sh->user_name, (u64)sizeof(sh->user_name), "root");
     sh->uid = 0ULL;
     sh->gid = 0ULL;
+    sh->role = CLEONOS_USER_ROLE_ADMIN;
     sh->history_nav = -1;
+}
+
+int ush_sync_user_from_kernel(ush_state *sh) {
+    cleonos_user_info info;
+
+    if (sh == (ush_state *)0) {
+        return 0;
+    }
+
+    ush_zero(&info, (u64)sizeof(info));
+    if (cleonos_sys_user_current(&info) == 0ULL || info.name[0] == '\0') {
+        return 0;
+    }
+
+    ush_copy(sh->user_name, (u64)sizeof(sh->user_name), info.name);
+    sh->uid = info.uid;
+    sh->gid = info.uid;
+    sh->role = info.role;
+    return 1;
 }
 
 u64 ush_strlen(const char *str) {
@@ -635,6 +655,7 @@ int ush_split_two_args(const char *arg, char *out_first, u64 out_first_size, cha
 
 int ush_command_ctx_read(ush_cmd_ctx *out_ctx) {
     u64 got;
+    const u64 legacy_size = USH_CMD_MAX + USH_ARG_MAX + USH_PATH_MAX;
 
     if (out_ctx == (ush_cmd_ctx *)0) {
         return 0;
@@ -642,7 +663,7 @@ int ush_command_ctx_read(ush_cmd_ctx *out_ctx) {
 
     ush_zero(out_ctx, (u64)sizeof(*out_ctx));
     got = cleonos_sys_fs_read(USH_CMD_CTX_PATH, (char *)out_ctx, (u64)sizeof(*out_ctx));
-    return (got == (u64)sizeof(*out_ctx)) ? 1 : 0;
+    return (got >= legacy_size && got <= (u64)sizeof(*out_ctx)) ? 1 : 0;
 }
 
 int ush_command_ctx_write(const ush_state *sh, const char *cmd, const char *arg) {
@@ -659,12 +680,14 @@ int ush_command_ctx_write(const ush_state *sh, const char *cmd, const char *arg)
     ush_copy(ctx.user_name, (u64)sizeof(ctx.user_name), sh->user_name);
     ctx.uid = sh->uid;
     ctx.gid = sh->gid;
+    ctx.role = sh->role;
 
     return (cleonos_sys_fs_write(USH_CMD_CTX_PATH, (const char *)&ctx, (u64)sizeof(ctx)) != 0ULL) ? 1 : 0;
 }
 
 int ush_command_ret_read(ush_cmd_ret *out_ret) {
     u64 got;
+    const u64 legacy_size = 16ULL + USH_PATH_MAX;
 
     if (out_ret == (ush_cmd_ret *)0) {
         return 0;
@@ -672,7 +695,7 @@ int ush_command_ret_read(ush_cmd_ret *out_ret) {
 
     ush_zero(out_ret, (u64)sizeof(*out_ret));
     got = cleonos_sys_fs_read(USH_CMD_RET_PATH, (char *)out_ret, (u64)sizeof(*out_ret));
-    return (got == (u64)sizeof(*out_ret)) ? 1 : 0;
+    return (got >= legacy_size && got <= (u64)sizeof(*out_ret)) ? 1 : 0;
 }
 
 int ush_command_ret_write(const ush_cmd_ret *ret) {
@@ -712,13 +735,17 @@ int ush_command_bootstrap_state(const char *expected_cmd, ush_cmd_ctx *out_ctx, 
             ush_copy(inout_state->user_name, (u64)sizeof(inout_state->user_name), out_ctx->user_name);
             inout_state->uid = out_ctx->uid;
             inout_state->gid = out_ctx->gid;
+            inout_state->role = out_ctx->role;
         }
     }
+
+    (void)ush_sync_user_from_kernel(inout_state);
 
     if (inout_state->user_name[0] == '\0') {
         ush_copy(inout_state->user_name, (u64)sizeof(inout_state->user_name), "root");
         inout_state->uid = 0ULL;
         inout_state->gid = 0ULL;
+        inout_state->role = CLEONOS_USER_ROLE_ADMIN;
     }
 
     return 1;
@@ -743,11 +770,13 @@ int ush_command_flush_state(const ush_cmd_ctx *ctx, const ush_state *state, cons
         ret.exit_code = state->exit_code;
     }
 
-    if (ush_streq(state->user_name, ctx->user_name) == 0 || state->uid != ctx->uid || state->gid != ctx->gid) {
+    if (ush_streq(state->user_name, ctx->user_name) == 0 || state->uid != ctx->uid || state->gid != ctx->gid ||
+        state->role != ctx->role) {
         ret.flags |= USH_CMD_RET_FLAG_USER;
         ush_copy(ret.user_name, (u64)sizeof(ret.user_name), state->user_name);
         ret.uid = state->uid;
         ret.gid = state->gid;
+        ret.role = state->role;
     }
 
     return ush_command_ret_write(&ret);

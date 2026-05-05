@@ -26,13 +26,17 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             ush_copy(sh.user_name, (u64)sizeof(sh.user_name), ctx.user_name);
             sh.uid = ctx.uid;
             sh.gid = ctx.gid;
+            sh.role = ctx.role;
         }
     }
+
+    (void)ush_sync_user_from_kernel(&sh);
 
     if (sh.user_name[0] == '\0') {
         ush_copy(sh.user_name, (u64)sizeof(sh.user_name), "root");
         sh.uid = 0ULL;
         sh.gid = 0ULL;
+        sh.role = CLEONOS_USER_ROLE_ADMIN;
     }
 
     ush_writeln(sh.user_name);
@@ -48,11 +52,13 @@ int cleonos_app_main(int argc, char **argv, char **envp) {
             ret.exit_code = sh.exit_code;
         }
 
-        if (ush_streq(sh.user_name, ctx.user_name) == 0 || sh.uid != ctx.uid || sh.gid != ctx.gid) {
+        if (ush_streq(sh.user_name, ctx.user_name) == 0 || sh.uid != ctx.uid || sh.gid != ctx.gid ||
+            sh.role != ctx.role) {
             ret.flags |= USH_CMD_RET_FLAG_USER;
             ush_copy(ret.user_name, (u64)sizeof(ret.user_name), sh.user_name);
             ret.uid = sh.uid;
             ret.gid = sh.gid;
+            ret.role = sh.role;
         }
 
         (void)ush_command_ret_write(&ret);
