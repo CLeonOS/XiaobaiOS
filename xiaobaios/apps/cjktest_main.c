@@ -1,0 +1,14 @@
+#include <stdio.h>
+
+int cleonos_app_main(int argc, char **argv, char **envp) {
+    (void)argc;
+    (void)argv;
+    (void)envp;
+
+    puts("ASCII: XiaoBaiOS TTY");
+    puts("CJK: \xE4\xB8\xAD\xE6\x96\x87\xE6\x98\xBE\xE7\xA4\xBA\xE6\xB5\x8B\xE8\xAF\x95");
+    puts("JP/KR: \xE3\x81\x82\xE3\x81\x84\xE3\x81\x86 \xED\x95\x9C\xEA\xB8\x80");
+    puts("Symbols: \xE2\x98\x85 \xE2\x9C\x93 \xE2\x86\x92 \xCE\xA9");
+    puts("Emoji: \xF0\x9F\x98\x80");
+    return 0;
+}

@@ -8,3 +8,15 @@
 [submodule "bdt"]
 	path = bdt
 	url = https://github.com/CLeonOS/kbt.git
+[submodule "third_party/litehtml"]
+	path = third_party/litehtml
+	url = https://github.com/litehtml/litehtml.git
+[submodule "third_party/mbedtls"]
+	path = third_party/mbedtls
+	url = https://github.com/CLeonOS/tls.git
+[submodule "xiaobaios/pkg"]
+	path = xiaobaios/pkg
+	url = https://github.com/CLeonOS/pkg.git
+[submodule "third_party/cJSON"]
+	path = third_party/cJSON
+	url = https://github.com/DaveGamble/cJSON.git

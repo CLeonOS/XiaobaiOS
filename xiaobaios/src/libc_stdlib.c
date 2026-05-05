@@ -13,10 +13,14 @@ typedef struct clib_heap_block {
     struct clib_heap_block *prev;
 } clib_heap_block;
 
+#define CLIB_HEAP_CHUNK_MIN (64U * 1024U)
+#define CLIB_HEAP_CHUNK_MAX (4U * 1024U * 1024U)
+
 extern unsigned char __cleonos_heap_start[];
 extern unsigned char __cleonos_heap_end[];
 
 static clib_heap_block *clib_heap_head = (clib_heap_block *)0;
+static clib_heap_block *clib_heap_tail = (clib_heap_block *)0;
 
 static size_t clib_align_up(size_t value) {
     size_t align = sizeof(void *) * 2U;
@@ -40,6 +44,7 @@ static void clib_heap_init(void) {
     clib_heap_head->free = 1;
     clib_heap_head->next = (clib_heap_block *)0;
     clib_heap_head->prev = (clib_heap_block *)0;
+    clib_heap_tail = clib_heap_head;
 }
 
 static void clib_heap_split(clib_heap_block *block, size_t size) {
@@ -59,6 +64,8 @@ static void clib_heap_split(clib_heap_block *block, size_t size) {
 
     if (tail->next != (clib_heap_block *)0) {
         tail->next->prev = tail;
+    } else {
+        clib_heap_tail = tail;
     }
 
     block->size = size;
@@ -81,7 +88,43 @@ static void clib_heap_merge_next(clib_heap_block *block) {
     block->next = next->next;
     if (block->next != (clib_heap_block *)0) {
         block->next->prev = block;
+    } else {
+        clib_heap_tail = block;
     }
+}
+
+static clib_heap_block *clib_heap_request_chunk(size_t need) {
+    size_t chunk_size = CLIB_HEAP_CHUNK_MAX;
+    clib_heap_block *block;
+
+    if (chunk_size < CLIB_HEAP_CHUNK_MIN) {
+        chunk_size = CLIB_HEAP_CHUNK_MIN;
+    }
+    if (chunk_size < need + sizeof(clib_heap_block)) {
+        chunk_size = need + sizeof(clib_heap_block);
+    }
+    chunk_size = clib_align_up(chunk_size);
+
+    block = (clib_heap_block *)cleonos_sys_vm_alloc((u64)chunk_size, CLEONOS_VM_FLAG_READ | CLEONOS_VM_FLAG_WRITE);
+    if (block == (clib_heap_block *)0) {
+        block = (clib_heap_block *)cleonos_sys_user_heap_alloc((u64)chunk_size);
+    }
+    if (block == (clib_heap_block *)0) {
+        return (clib_heap_block *)0;
+    }
+
+    block->size = chunk_size - sizeof(clib_heap_block);
+    block->free = 1;
+    block->next = (clib_heap_block *)0;
+    block->prev = clib_heap_tail;
+
+    if (clib_heap_tail != (clib_heap_block *)0) {
+        clib_heap_tail->next = block;
+    } else {
+        clib_heap_head = block;
+    }
+    clib_heap_tail = block;
+    return block;
 }
 
 static int clib_digit_value(int ch) {
@@ -341,7 +384,13 @@ void *malloc(size_t size) {
         current = current->next;
     }
 
-    return (void *)0;
+    current = clib_heap_request_chunk(need);
+    if (current == (clib_heap_block *)0) {
+        return (void *)0;
+    }
+    clib_heap_split(current, need);
+    current->free = 0;
+    return (void *)(((unsigned char *)current) + sizeof(clib_heap_block));
 }
 
 void *calloc(size_t count, size_t size) {
