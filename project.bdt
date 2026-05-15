@@ -35,10 +35,21 @@ USER_CFLAGS = -std=c11,-ffreestanding,-fno-stack-protector,-fno-builtin,-mgenera
 USER_TLS_CFLAGS = -I{root}/xiaobaios/apps,-I{root}/third_party/mbedtls/include,-DMBEDTLS_CONFIG_FILE='<tls/cleonos_mbedtls_config.h>',-DMBEDTLS_HAVE_INT32
 USER_GUMBO_CFLAGS = -I{root}/third_party/litehtml/src/gumbo/include,-I{root}/third_party/litehtml/src/gumbo/include/gumbo,-I{root}/third_party/litehtml/src/gumbo,-DNDEBUG
 USER_CJSON_CFLAGS = -I{root}/third_party/cJSON,-I{root}/xiaobaios/pkg,-include,{root}/xiaobaios/pkg/pkg_cjson_config.h,-mstackrealign
+USER_LUA_CFLAGS = -I{root}/xiaobaios/apps/lua,-I{root}/third_party/lua/src,-include,{root}/xiaobaios/apps/lua/lua_cleonos_config.h,-include,{root}/xiaobaios/apps/lua/lua_cleonos_compat.h
+USER_ZLIB_CFLAGS = -I{root}/build/x86_64/generated/zlib,-I{root}/third_party/zlib,-DHAVE_MEMCPY,-DNO_GZIP,-DNO_GZCOMPRESS
+USER_LIBPNG_CFLAGS = -I{root}/third_party/libpng,{USER_ZLIB_CFLAGS}
+USER_STB_CFLAGS = -I{root}/third_party/stb,-I{root}/xiaobaios/apps/stb,-mstackrealign,-Wno-unused-parameter
+USER_SQLITE_CFLAGS = -I{root}/build/x86_64/generated/sqlite,-include,stdint.h,-DSQLITE_OS_OTHER=1,-DSQLITE_THREADSAFE=0,-DSQLITE_OMIT_LOAD_EXTENSION=1,-DSQLITE_OMIT_WAL=1,-DSQLITE_TEMP_STORE=3,-DSQLITE_OMIT_SHARED_CACHE=1,-DSQLITE_OMIT_LOCALTIME=1,-DSQLITE_OMIT_UTF16=1,-DSQLITE_DEFAULT_MEMSTATUS=0
 USER_TLS_SOURCES = {root}/xiaobaios/apps/tls/cleonos_tls.c,{root}/xiaobaios/apps/tls/cleonos_tls_entropy.c,{root}/third_party/mbedtls/library/aes.c,{root}/third_party/mbedtls/library/asn1parse.c,{root}/third_party/mbedtls/library/asn1write.c,{root}/third_party/mbedtls/library/bignum.c,{root}/third_party/mbedtls/library/bignum_core.c,{root}/third_party/mbedtls/library/bignum_mod.c,{root}/third_party/mbedtls/library/bignum_mod_raw.c,{root}/third_party/mbedtls/library/cipher.c,{root}/third_party/mbedtls/library/cipher_wrap.c,{root}/third_party/mbedtls/library/constant_time.c,{root}/third_party/mbedtls/library/ctr_drbg.c,{root}/third_party/mbedtls/library/ecdh.c,{root}/third_party/mbedtls/library/ecdsa.c,{root}/third_party/mbedtls/library/ecp.c,{root}/third_party/mbedtls/library/ecp_curves.c,{root}/third_party/mbedtls/library/entropy.c,{root}/third_party/mbedtls/library/error.c,{root}/third_party/mbedtls/library/gcm.c,{root}/third_party/mbedtls/library/md.c,{root}/third_party/mbedtls/library/oid.c,{root}/third_party/mbedtls/library/pk.c,{root}/third_party/mbedtls/library/pk_ecc.c,{root}/third_party/mbedtls/library/pk_wrap.c,{root}/third_party/mbedtls/library/pkparse.c,{root}/third_party/mbedtls/library/platform.c,{root}/third_party/mbedtls/library/platform_util.c,{root}/third_party/mbedtls/library/rsa.c,{root}/third_party/mbedtls/library/rsa_alt_helpers.c,{root}/third_party/mbedtls/library/sha256.c,{root}/third_party/mbedtls/library/sha512.c,{root}/third_party/mbedtls/library/ssl_ciphersuites.c,{root}/third_party/mbedtls/library/ssl_client.c,{root}/third_party/mbedtls/library/ssl_msg.c,{root}/third_party/mbedtls/library/ssl_tls.c,{root}/third_party/mbedtls/library/ssl_tls12_client.c,{root}/third_party/mbedtls/library/version_features.c,{root}/third_party/mbedtls/library/x509.c,{root}/third_party/mbedtls/library/x509_crt.c
 USER_CJSON_SOURCES = {root}/xiaobaios/apps/pkg_cjson_min.c
-USER_PKG_SOURCES = {root}/xiaobaios/apps/pkg_cjson_min.c,{root}/xiaobaios/pkg/pkg_state.c,{root}/xiaobaios/pkg/pkg_util.c,{root}/xiaobaios/pkg/pkg_json.c,{root}/xiaobaios/pkg/pkg_fs.c,{root}/xiaobaios/pkg/pkg_sha256.c,{root}/xiaobaios/pkg/pkg_manifest.c,{root}/xiaobaios/pkg/pkg_remote.c,{root}/xiaobaios/pkg/pkg_install.c,{root}/xiaobaios/pkg/pkg_check.c,{root}/xiaobaios/pkg/pkg_commands.c,{root}/xiaobaios/pkg/pkg_client.c
-USER_LDFLAGS = -nostdlib,--gc-sections,-z,max-page-size=0x1000
+USER_SQLITE_SOURCES = {root}/build/x86_64/generated/sqlite/sqlite3.c,{root}/xiaobaios/apps/sqlite/sqlite_cleonos_vfs.c
+USER_LUA_SOURCES = {root}/xiaobaios/apps/lua/lua_cleonos_compat.c,{root}/xiaobaios/apps/lua/lua_cleonos_libs.c,{root}/third_party/lua/src/lapi.c,{root}/third_party/lua/src/lauxlib.c,{root}/third_party/lua/src/lbaselib.c,{root}/third_party/lua/src/lcode.c,{root}/third_party/lua/src/lcorolib.c,{root}/third_party/lua/src/lctype.c,{root}/third_party/lua/src/ldblib.c,{root}/third_party/lua/src/ldebug.c,{root}/third_party/lua/src/ldo.c,{root}/third_party/lua/src/ldump.c,{root}/third_party/lua/src/lfunc.c,{root}/third_party/lua/src/lgc.c,{root}/third_party/lua/src/llex.c,{root}/third_party/lua/src/lmem.c,{root}/third_party/lua/src/lobject.c,{root}/third_party/lua/src/lopcodes.c,{root}/third_party/lua/src/lparser.c,{root}/third_party/lua/src/lstate.c,{root}/third_party/lua/src/lstring.c,{root}/third_party/lua/src/lstrlib.c,{root}/third_party/lua/src/ltable.c,{root}/third_party/lua/src/ltablib.c,{root}/third_party/lua/src/ltm.c,{root}/third_party/lua/src/lundump.c,{root}/third_party/lua/src/lutf8lib.c,{root}/third_party/lua/src/lvm.c,{root}/third_party/lua/src/lzio.c
+USER_ZLIB_SOURCES = {root}/third_party/zlib/adler32.c,{root}/third_party/zlib/compress.c,{root}/third_party/zlib/crc32.c,{root}/third_party/zlib/deflate.c,{root}/third_party/zlib/inffast.c,{root}/third_party/zlib/inflate.c,{root}/third_party/zlib/inftrees.c,{root}/third_party/zlib/trees.c,{root}/third_party/zlib/uncompr.c,{root}/third_party/zlib/zutil.c
+USER_LIBPNG_SOURCES = {root}/third_party/libpng/png.c,{root}/third_party/libpng/pngerror.c,{root}/third_party/libpng/pngget.c,{root}/third_party/libpng/pngmem.c,{root}/third_party/libpng/pngread.c,{root}/third_party/libpng/pngrio.c,{root}/third_party/libpng/pngrtran.c,{root}/third_party/libpng/pngrutil.c,{root}/third_party/libpng/pngset.c,{root}/third_party/libpng/pngtrans.c
+USER_STB_SOURCES = {root}/xiaobaios/apps/stb/stb_image_cleonos.c
+USER_PKG_SOURCES = {root}/xiaobaios/apps/pkg_cjson_min.c,{root}/xiaobaios/pkg/pkg_state.c,{root}/xiaobaios/pkg/pkg_util.c,{root}/xiaobaios/pkg/pkg_json.c,{root}/xiaobaios/pkg/pkg_fs.c,{root}/xiaobaios/pkg/pkg_sha256.c,{root}/xiaobaios/pkg/pkg_manifest.c,{root}/xiaobaios/pkg/pkg_remote.c,{root}/xiaobaios/pkg/pkg_install.c,{root}/xiaobaios/pkg/pkg_check.c,{root}/xiaobaios/pkg/pkg_commands.c,{root}/xiaobaios/pkg/pkg_client.c,{root}/xiaobaios/pkg/pkg_sqlite.c
+USER_LDFLAGS = -nostdlib,--gc-sections,-z,max-page-size=0x1000,/usr/lib/clang/22/lib/linux/libclang_rt.builtins-x86_64.a
+USER_BUILTINS = /usr/lib/clang/22/lib/linux/libclang_rt.builtins-x86_64.a
 KERNEL_LDFLAGS = -nostdlib,--gc-sections,-z,max-page-size=0x1000
 
 [subprojects]
@@ -69,7 +80,7 @@ always = true
 deps = setup-tools, kernel-version-header
 type = compile
 tool = {CC}
-sources = clks/arch/x86_64/startup/boot.c,clks/kernel/boot/limine/limine_requests.c,clks/kernel/core/interrupts.c,xiaobaios/kernel/core/kmain.c,clks/kernel/core/log.c,clks/kernel/core/panic.c,clks/kernel/core/scheduler.c,clks/kernel/core/service.c,clks/kernel/hal/audio/pcspeaker.c,clks/kernel/hal/serial/serial.c,clks/kernel/hal/video/font8x8.c,xiaobaios/kernel/hal/video/framebuffer.c,clks/kernel/hal/video/psf_font.c,xiaobaios/kernel/font/ttf.c,clks/kernel/input/keyboard.c,clks/kernel/input/mouse.c,clks/kernel/interface/bootsplash.c,clks/kernel/interface/desktop.c,clks/kernel/interface/shell.c,clks/kernel/interface/tty.c,clks/kernel/interface/wm.c,clks/kernel/memory/heap.c,clks/kernel/memory/pmm.c,clks/kernel/memory/vm.c,clks/kernel/runtime/driver.c,clks/kernel/runtime/elf64.c,clks/kernel/runtime/elfrunner.c,clks/kernel/runtime/exec.c,clks/kernel/runtime/kelf.c,xiaobaios/kernel/runtime/locale.c,clks/kernel/runtime/net.c,clks/kernel/runtime/pty.c,clks/kernel/runtime/syscall.c,clks/kernel/runtime/user.c,clks/kernel/runtime/userland.c,clks/kernel/storage/disk.c,clks/kernel/storage/fs.c,clks/kernel/storage/ramdisk.c,clks/kernel/support/libc_compat.c,clks/kernel/support/string.c,clks/third_party/miniz/miniz_support.c,clks/third_party/miniz/miniz_tdef.c,clks/third_party/qrcodegen/qrcodegen.c
+sources = clks/arch/x86_64/startup/boot.c,clks/kernel/boot/limine/limine_requests.c,clks/kernel/core/interrupts.c,xiaobaios/kernel/core/kmain.c,clks/kernel/core/log.c,clks/kernel/core/panic.c,clks/kernel/core/scheduler.c,clks/kernel/core/service.c,clks/kernel/hal/audio/pcspeaker.c,clks/kernel/hal/serial/serial.c,clks/kernel/hal/video/font8x8.c,xiaobaios/kernel/hal/video/framebuffer.c,clks/kernel/hal/video/psf_font.c,xiaobaios/kernel/font/ttf.c,clks/kernel/input/inputm.c,clks/kernel/input/keyboard.c,clks/kernel/input/mouse.c,clks/kernel/interface/display.c,clks/kernel/interface/bootsplash.c,clks/kernel/interface/desktop.c,clks/kernel/interface/shell.c,clks/kernel/interface/tty.c,clks/kernel/interface/wm.c,clks/kernel/memory/heap.c,clks/kernel/memory/pmm.c,clks/kernel/memory/vm.c,clks/kernel/runtime/driver.c,clks/kernel/runtime/elf64.c,clks/kernel/runtime/elfrunner.c,clks/kernel/runtime/exec.c,clks/kernel/runtime/kelf.c,xiaobaios/kernel/runtime/locale.c,clks/kernel/runtime/net.c,clks/kernel/runtime/pty.c,clks/kernel/runtime/syscall.c,clks/kernel/runtime/user.c,clks/kernel/runtime/userland.c,clks/kernel/storage/disk.c,clks/kernel/storage/fs.c,clks/kernel/storage/ramdisk.c,clks/kernel/support/libc_compat.c,clks/kernel/support/string.c,clks/third_party/miniz/miniz_support.c,clks/third_party/miniz/miniz_tdef.c,clks/third_party/qrcodegen/qrcodegen.c
 output = {root}/build/x86_64/obj
 cflags = {KERNEL_CFLAGS}
 
@@ -115,7 +126,7 @@ cache = false
 always = true
 
 [target.userapps]
-deps = setup-tools
+deps = setup-tools, sqlite-generated, zlib-generated
 type = c-apps
 tool = {USER_CC}
 main_dir = {root}/xiaobaios/apps
@@ -136,8 +147,20 @@ app.httpget.cflags = {USER_TLS_CFLAGS},-include,{root}/xiaobaios/include/stdio.h
 app.httpget.sources = {USER_TLS_SOURCES}
 app.wget.cflags = {USER_TLS_CFLAGS},-include,{root}/xiaobaios/include/stdio.h
 app.wget.sources = {USER_TLS_SOURCES}
-app.pkg.cflags = {USER_CJSON_CFLAGS},-I{root}/xiaobaios/apps
-app.pkg.sources = {USER_PKG_SOURCES}
+app.lua.cflags = {USER_LUA_CFLAGS}
+app.lua.sources = {USER_LUA_SOURCES}
+app.zlibtest.cflags = {USER_ZLIB_CFLAGS}
+app.zlibtest.sources = {USER_ZLIB_SOURCES}
+app.pngtest.cflags = {USER_LIBPNG_CFLAGS}
+app.pngtest.sources = {USER_LIBPNG_SOURCES},{USER_ZLIB_SOURCES}
+app.stbtest.cflags = {USER_STB_CFLAGS}
+app.stbtest.sources = {USER_STB_SOURCES}
+app.imgview.cflags = {USER_LIBPNG_CFLAGS},{USER_STB_CFLAGS}
+app.imgview.sources = {USER_LIBPNG_SOURCES},{USER_ZLIB_SOURCES},{USER_STB_SOURCES}
+app.sqlitetest.cflags = {USER_SQLITE_CFLAGS}
+app.sqlitetest.sources = {USER_SQLITE_SOURCES}
+app.pkg.cflags = {USER_CJSON_CFLAGS},{USER_SQLITE_CFLAGS},-I{root}/xiaobaios/apps
+app.pkg.sources = {USER_SQLITE_SOURCES},{USER_PKG_SOURCES}
 app.xsh.sources = {root}/xiaobaios/apps/user/cleonos_user.c
 app.install2disk.sources = {root}/xiaobaios/apps/user/cleonos_user.c
 
@@ -149,10 +172,26 @@ outputs = {root}/build/x86_64/generated/tty.psf
 cache = false
 always = true
 
+[target.sqlite-generated]
+deps = setup-tools
+type = command
+command = {SH_TOOL} -c 'set -e; mkdir -p build/third_party/sqlite build/x86_64/generated/sqlite; cd build/third_party/sqlite; ../../../third_party/sqlite/configure --disable-shared --enable-static >/dev/null; make sqlite3.c sqlite3.h sqlite3ext.h >/dev/null; cd ../../..; cp build/third_party/sqlite/sqlite3.c build/third_party/sqlite/sqlite3.h build/third_party/sqlite/sqlite3ext.h build/x86_64/generated/sqlite/'
+outputs = {root}/build/x86_64/generated/sqlite/sqlite3.c,{root}/build/x86_64/generated/sqlite/sqlite3.h,{root}/build/x86_64/generated/sqlite/sqlite3ext.h
+cache = false
+always = true
+
+[target.zlib-generated]
+deps = setup-tools
+type = command
+command = {SH_TOOL} -c 'set -e; mkdir -p build/x86_64/generated/zlib; cp third_party/zlib/zconf.h.in build/x86_64/generated/zlib/zconf.h'
+outputs = {root}/build/x86_64/generated/zlib/zconf.h
+cache = false
+always = true
+
 [target.ramdisk-root]
 deps = userapps, kernel-symbols, generated-assets
 type = command
-command = {SH_TOOL} -c 'set -e; rm -rf build/x86_64/ramdisk_root; mkdir -p build/x86_64/ramdisk_root/system/etc build/x86_64/ramdisk_root/system/fonts build/x86_64/ramdisk_root/system/install build/x86_64/ramdisk_root/shell build/x86_64/ramdisk_root/driver build/x86_64/ramdisk_root/dev build/x86_64/ramdisk_root/home build/x86_64/ramdisk_root/temp; [ ! -d ramdisk ] || cp -a ramdisk/. build/x86_64/ramdisk_root/; printf "zh-CN\n" > build/x86_64/ramdisk_root/system/locale.conf; cp fonts/xde.ttf build/x86_64/ramdisk_root/system/xde.ttf; cp fonts/system.ttf build/x86_64/ramdisk_root/system/fonts/tty-zh-CN.ttf; cp build/x86_64/generated/tty.psf build/x86_64/ramdisk_root/system/fonts/tty-en-US.psf; cp build/x86_64/kernel.sym build/x86_64/ramdisk_root/system/kernel.sym; cp build/x86_64/clks_kernel.elf build/x86_64/ramdisk_root/system/install/clks_kernel.elf; if [ -f limine/limine-bios.sys ]; then ldir=limine; else ldir=limine/bin; fi; cp "$ldir"/limine-bios.sys build/x86_64/ramdisk_root/system/install/limine-bios.sys; cp "$ldir"/limine-bios-hdd.bin build/x86_64/ramdisk_root/system/install/limine-bios-hdd.bin; cp configs/limine-harddisk.conf build/x86_64/ramdisk_root/system/install/limine-harddisk.conf; for app in build/x86_64/xiaobaios_user/apps/*.elf; do name=$(basename "$app" .elf); if [ "$name" = hello ]; then cp "$app" build/x86_64/ramdisk_root/; elif case "$name" in *drv) true;; *) false;; esac; then cp "$app" build/x86_64/ramdisk_root/driver/; else cp "$app" build/x86_64/ramdisk_root/shell/; fi; if [ "$name" = xsh ]; then cp "$app" build/x86_64/ramdisk_root/shell/shell.elf; fi; done'
+command = {SH_TOOL} -c 'set -e; rm -rf build/x86_64/ramdisk_root; mkdir -p build/x86_64/ramdisk_root/system/etc build/x86_64/ramdisk_root/system/fonts build/x86_64/ramdisk_root/system/install build/x86_64/ramdisk_root/system/inputm build/x86_64/ramdisk_root/shell build/x86_64/ramdisk_root/shell/inputm build/x86_64/ramdisk_root/driver build/x86_64/ramdisk_root/dev build/x86_64/ramdisk_root/home build/x86_64/ramdisk_root/temp; [ ! -d ramdisk ] || cp -a ramdisk/. build/x86_64/ramdisk_root/; printf "zh-CN\n" > build/x86_64/ramdisk_root/system/locale.conf; cp fonts/xde.ttf build/x86_64/ramdisk_root/system/xde.ttf; cp fonts/system.ttf build/x86_64/ramdisk_root/system/fonts/tty-zh-CN.ttf; cp build/x86_64/generated/tty.psf build/x86_64/ramdisk_root/system/fonts/tty-en-US.psf; cp build/x86_64/kernel.sym build/x86_64/ramdisk_root/system/kernel.sym; cp build/x86_64/clks_kernel.elf build/x86_64/ramdisk_root/system/install/clks_kernel.elf; if [ -f limine/limine-bios.sys ]; then ldir=limine; else ldir=limine/bin; fi; cp "$ldir"/limine-bios.sys build/x86_64/ramdisk_root/system/install/limine-bios.sys; cp "$ldir"/limine-bios-hdd.bin build/x86_64/ramdisk_root/system/install/limine-bios-hdd.bin; cp configs/limine-harddisk.conf build/x86_64/ramdisk_root/system/install/limine-harddisk.conf; for app in build/x86_64/xiaobaios_user/apps/*.elf; do name=$(basename "$app" .elf); if [ "$name" = hello ]; then cp "$app" build/x86_64/ramdisk_root/; elif [ "$name" = pinyin ]; then cp "$app" build/x86_64/ramdisk_root/shell/inputm/; cp "$app" build/x86_64/ramdisk_root/shell/; elif case "$name" in *drv) true;; *) false;; esac; then cp "$app" build/x86_64/ramdisk_root/driver/; else cp "$app" build/x86_64/ramdisk_root/shell/; fi; if [ "$name" = xsh ]; then cp "$app" build/x86_64/ramdisk_root/shell/shell.elf; fi; done'
 cache = false
 always = true
 

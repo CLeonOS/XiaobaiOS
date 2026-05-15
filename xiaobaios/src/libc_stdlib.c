@@ -181,6 +181,73 @@ long long atoll(const char *text) {
     return strtoll(text, (char **)0, 10);
 }
 
+double atof(const char *text) {
+    return strtod(text, (char **)0);
+}
+
+double strtod(const char *text, char **out_end) {
+    const char *p = clib_skip_space(text);
+    double value = 0.0;
+    double place = 0.1;
+    int negative = 0;
+    int any = 0;
+
+    if (out_end != (char **)0) {
+        *out_end = (char *)text;
+    }
+    if (p == (const char *)0) {
+        return 0.0;
+    }
+    if (*p == '+' || *p == '-') {
+        negative = (*p == '-') ? 1 : 0;
+        p++;
+    }
+    while (*p >= '0' && *p <= '9') {
+        value = value * 10.0 + (double)(*p - '0');
+        p++;
+        any = 1;
+    }
+    if (*p == '.') {
+        p++;
+        while (*p >= '0' && *p <= '9') {
+            value += (double)(*p - '0') * place;
+            place *= 0.1;
+            p++;
+            any = 1;
+        }
+    }
+    if ((*p == 'e' || *p == 'E') && any != 0) {
+        const char *exp_start = p;
+        int exp_negative = 0;
+        int exp_value = 0;
+        int exp_any = 0;
+
+        p++;
+        if (*p == '+' || *p == '-') {
+            exp_negative = (*p == '-') ? 1 : 0;
+            p++;
+        }
+        while (*p >= '0' && *p <= '9') {
+            if (exp_value < 308) {
+                exp_value = exp_value * 10 + (*p - '0');
+            }
+            p++;
+            exp_any = 1;
+        }
+        if (exp_any == 0) {
+            p = exp_start;
+        } else {
+            while (exp_value-- > 0) {
+                value = exp_negative != 0 ? value / 10.0 : value * 10.0;
+            }
+        }
+    }
+    if (out_end != (char **)0 && any != 0) {
+        *out_end = (char *)p;
+    }
+    return negative != 0 ? -value : value;
+}
+
 unsigned long strtoul(const char *text, char **out_end, int base) {
     const char *p = clib_skip_space(text);
     int negative = 0;
@@ -473,4 +540,8 @@ void exit(int status) {
 
 void abort(void) {
     exit(EXIT_FAILURE);
+}
+
+void __stack_chk_fail(void) {
+    abort();
 }

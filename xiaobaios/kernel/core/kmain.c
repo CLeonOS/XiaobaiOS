@@ -12,6 +12,7 @@
 #include <clks/fs.h>
 #include <clks/heap.h>
 #include <clks/interrupts.h>
+#include <clks/inputm.h>
 #include <clks/keyboard.h>
 #include <clks/kelf.h>
 #include <clks/kernel.h>
@@ -23,6 +24,7 @@
 #include <clks/scheduler.h>
 #include <clks/serial.h>
 #include <clks/service.h>
+#include <clks/display.h>
 #include <clks/shell.h>
 #include <clks/string.h>
 #include <clks/syscall.h>
@@ -193,6 +195,23 @@ static void clks_task_usrd(u64 tick) {
 }
 #endif
 
+static void clks_kmain_apply_boot_locale(void) {
+    char value[CLKS_LOCALE_MAX];
+
+    if (clks_boot_cmdline_get_value("clks.locale", value, sizeof(value)) == CLKS_FALSE &&
+        clks_boot_cmdline_get_value("locale", value, sizeof(value)) == CLKS_FALSE) {
+        return;
+    }
+
+    if (clks_locale_set(value, CLKS_FALSE) == CLKS_TRUE) {
+        clks_log(CLKS_LOG_INFO, "LOCALE", "BOOT CMDLINE OVERRIDE");
+        clks_log(CLKS_LOG_INFO, "LOCALE", value);
+    } else {
+        clks_log(CLKS_LOG_WARN, "LOCALE", "INVALID BOOT CMDLINE LOCALE");
+        clks_log(CLKS_LOG_WARN, "LOCALE", value);
+    }
+}
+
 void clks_kernel_main(void) {
     const struct limine_framebuffer *boot_fb;
     const struct limine_memmap_response *boot_memmap;
@@ -218,6 +237,7 @@ void clks_kernel_main(void) {
     /* TTY comes up only when framebuffer exists; no pixels, no pretty lies. */
     if (boot_fb != CLKS_NULL) {
         clks_fb_init(boot_fb);
+        clks_display_init();
         clks_tty_init();
         clks_bootsplash_init();
     }
@@ -302,6 +322,7 @@ void clks_kernel_main(void) {
     }
 
     clks_locale_init();
+    clks_kmain_apply_boot_locale();
     clks_bootsplash_step(42U, "filesystem online");
 
     fs_root_children = clks_fs_count_children("/");
@@ -362,6 +383,9 @@ void clks_kernel_main(void) {
     clks_keyboard_init();
 #else
     clks_log(CLKS_LOG_WARN, "CFG", "KEYBOARD DISABLED BY MENUCONFIG");
+#endif
+#if CLKS_CFG_EXTERNAL_PSF
+    clks_inputm_init();
 #endif
 #if CLKS_CFG_MOUSE
     clks_mouse_init();

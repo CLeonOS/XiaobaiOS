@@ -223,6 +223,10 @@ int strncmp(const char *left, const char *right, size_t size) {
     return (left[i] < right[i]) ? -1 : 1;
 }
 
+int strcoll(const char *left, const char *right) {
+    return strcmp(left, right);
+}
+
 char *strchr(const char *text, int ch) {
     char needle = (char)ch;
     size_t i = 0U;

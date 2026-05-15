@@ -8,6 +8,7 @@ typedef unsigned long clio_size_t;
 #define CLIO_SINK_BUF 2
 #define CLIO_CAPTURE_PATH_MAX 192UL
 #define CLIO_STDIO_BUF_SIZE 1024UL
+#define CLIO_FILE_TABLE_SIZE 16
 
 static char clio_capture_path[CLIO_CAPTURE_PATH_MAX];
 static int clio_capture_enabled;
@@ -15,6 +16,7 @@ static char clio_stdout_buf[CLIO_STDIO_BUF_SIZE];
 static char clio_stderr_buf[CLIO_STDIO_BUF_SIZE];
 static clio_size_t clio_stdout_len;
 static clio_size_t clio_stderr_len;
+static FILE clio_file_table[CLIO_FILE_TABLE_SIZE];
 
 struct clio_sink {
     int mode;
@@ -233,6 +235,71 @@ static int clio_buffered_write_fd(int fd, const char *text, clio_size_t len) {
 int fflush(int fd) {
     if (fd == 1 || fd == 2) {
         return clio_flush_stdio_fd(fd);
+    }
+
+    return 0;
+}
+
+FILE *fopen(const char *path, const char *mode) {
+    u64 fd;
+    int i;
+
+    (void)mode;
+
+    if (path == (const char *)0) {
+        return (FILE *)0;
+    }
+
+    fd = cleonos_sys_fd_open(path, 0ULL, 0ULL);
+    if (fd == (u64)-1 || fd > 0x7FFFFFFFULL) {
+        return (FILE *)0;
+    }
+
+    for (i = 0; i < CLIO_FILE_TABLE_SIZE; i++) {
+        if (clio_file_table[i].used == 0) {
+            clio_file_table[i].fd = (int)fd;
+            clio_file_table[i].error = 0;
+            clio_file_table[i].used = 1;
+            return &clio_file_table[i];
+        }
+    }
+
+    (void)cleonos_sys_fd_close(fd);
+    return (FILE *)0;
+}
+
+size_t fread(void *out, size_t size, size_t count, FILE *stream) {
+    u64 wanted;
+    u64 read;
+
+    if (stream == (FILE *)0 || stream->used == 0 || out == (void *)0 || size == 0UL || count == 0UL) {
+        return 0UL;
+    }
+
+    wanted = (u64)(size * count);
+    read = cleonos_sys_fd_read((u64)stream->fd, out, wanted);
+    if (read == (u64)-1) {
+        stream->error = 1;
+        return 0UL;
+    }
+
+    return (size_t)(read / (u64)size);
+}
+
+int ferror(FILE *stream) {
+    if (stream == (FILE *)0 || stream->used == 0) {
+        return 1;
+    }
+
+    return stream->error;
+}
+
+int fclose(FILE *stream) {
+    if (stream != (FILE *)0 && stream->used != 0) {
+        (void)cleonos_sys_fd_close((u64)stream->fd);
+        stream->fd = -1;
+        stream->error = 0;
+        stream->used = 0;
     }
 
     return 0;

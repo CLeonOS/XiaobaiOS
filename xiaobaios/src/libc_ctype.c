@@ -32,6 +32,14 @@ int isprint(int ch) {
     return (ch >= 0x20 && ch <= 0x7E) ? 1 : 0;
 }
 
+int isgraph(int ch) {
+    return (ch >= 0x21 && ch <= 0x7E) ? 1 : 0;
+}
+
+int ispunct(int ch) {
+    return (isgraph(ch) != 0 && isalnum(ch) == 0) ? 1 : 0;
+}
+
 int iscntrl(int ch) {
     return (ch >= 0x00 && ch <= 0x1F) || ch == 0x7F ? 1 : 0;
 }

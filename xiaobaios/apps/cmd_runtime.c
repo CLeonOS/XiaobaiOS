@@ -307,8 +307,7 @@ void ush_print_kv_hex(const char *label, u64 value) {
 }
 
 int ush_locale_is_zh(void) {
-    char locale[32];
-    u64 got;
+    char locale[CLEONOS_LOCALE_TEXT_MAX];
 
     if (ush_locale_cached != 0) {
         return ush_locale_cached_zh;
@@ -318,15 +317,12 @@ int ush_locale_is_zh(void) {
     ush_locale_cached_zh = 0;
     ush_zero(locale, (u64)sizeof(locale));
 
-    got = cleonos_sys_fs_read("/system/locale.conf", locale, (u64)sizeof(locale) - 1ULL);
-    if (got == 0ULL || got == (u64)-1) {
+    if (cleonos_sys_locale_get(locale, (u64)sizeof(locale)) == 0ULL) {
         return 0;
     }
-    locale[sizeof(locale) - 1U] = '\0';
 
     if (locale[0] == 'z' && locale[1] == 'h' &&
-        (locale[2] == '\0' || locale[2] == '_' || locale[2] == '-' || locale[2] == '.' ||
-         locale[2] == '\r' || locale[2] == '\n')) {
+        (locale[2] == '\0' || locale[2] == '_' || locale[2] == '-' || locale[2] == '.')) {
         ush_locale_cached_zh = 1;
     }
 

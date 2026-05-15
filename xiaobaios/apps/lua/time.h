@@ -1,5 +1,5 @@
-#ifndef CLEONOS_LIBC_TIME_H
-#define CLEONOS_LIBC_TIME_H
+#ifndef CLEONOS_LUA_TIME_H
+#define CLEONOS_LUA_TIME_H
 
 typedef long time_t;
 typedef long clock_t;

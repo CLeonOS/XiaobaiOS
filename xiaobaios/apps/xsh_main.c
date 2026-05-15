@@ -429,7 +429,7 @@ static int xsh_read_line(char *out, u64 out_size, int echo_input) {
             continue;
         }
 
-        if (isprint((unsigned char)ch) != 0 && len + 1ULL < out_size) {
+        if (((ch >= 0x20ULL && ch != 0x7FULL) || ch >= 0x80ULL) && len + 1ULL < out_size) {
             out[len++] = (char)ch;
             if (echo_input != 0) {
                 ush_write_char((char)ch);

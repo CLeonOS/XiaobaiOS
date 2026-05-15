@@ -139,6 +139,48 @@ u64 cleonos_sys_tty_write_char(char ch) {
     return cleonos_syscall(CLEONOS_SYSCALL_TTY_WRITE_CHAR, (u64)(unsigned char)ch, 0ULL, 0ULL);
 }
 
+u64 cleonos_sys_tty_status_set(const char *text) {
+    return cleonos_syscall(CLEONOS_SYSCALL_TTY_STATUS_SET, (u64)(usize)text, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_inputm_count(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_INPUTM_COUNT, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_inputm_info(u64 index, cleonos_inputm_info *out_info) {
+    return cleonos_syscall(CLEONOS_SYSCALL_INPUTM_INFO, index, (u64)(usize)out_info,
+                           (u64)sizeof(cleonos_inputm_info));
+}
+
+u64 cleonos_sys_inputm_current(void) {
+    return cleonos_syscall(CLEONOS_SYSCALL_INPUTM_CURRENT, 0ULL, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_inputm_select(u64 index) {
+    return cleonos_syscall(CLEONOS_SYSCALL_INPUTM_SELECT, index, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_inputm_register(const char *name, const char *path, u64 flags) {
+    cleonos_inputm_register_req req;
+
+    req.name_ptr = (u64)(usize)name;
+    req.path_ptr = (u64)(usize)path;
+    req.flags = flags;
+    return cleonos_syscall(CLEONOS_SYSCALL_INPUTM_REGISTER, (u64)(usize)&req, 0ULL, 0ULL);
+}
+
+u64 cleonos_sys_inputm_register_rule(const char *name, const char *path, const char *rule_path, const char *label,
+                                     u64 flags) {
+    cleonos_inputm_rule_register_req req;
+
+    req.name_ptr = (u64)(usize)name;
+    req.path_ptr = (u64)(usize)path;
+    req.rule_path_ptr = (u64)(usize)rule_path;
+    req.label_ptr = (u64)(usize)label;
+    req.flags = flags;
+    return cleonos_syscall(CLEONOS_SYSCALL_INPUTM_REGISTER_RULE, (u64)(usize)&req, 0ULL, 0ULL);
+}
+
 u64 cleonos_sys_kbd_get_char(void) {
     return cleonos_syscall(CLEONOS_SYSCALL_KBD_GET_CHAR, 0ULL, 0ULL, 0ULL);
 }
@@ -430,6 +472,14 @@ u64 cleonos_sys_disk_fsck_fat32(u64 flags, cleonos_disk_fsck_result *out_result)
 
 u64 cleonos_sys_sysinfo(cleonos_sysinfo *out_info) {
     return cleonos_syscall(CLEONOS_SYSCALL_SYSINFO, (u64)out_info, (u64)sizeof(cleonos_sysinfo), 0ULL);
+}
+
+u64 cleonos_sys_locale_get(char *out_locale, u64 out_size) {
+    return cleonos_syscall(CLEONOS_SYSCALL_LOCALE_GET, (u64)(usize)out_locale, out_size, 0ULL);
+}
+
+u64 cleonos_sys_locale_set(const char *locale) {
+    return cleonos_syscall(CLEONOS_SYSCALL_LOCALE_SET, (u64)(usize)locale, 0ULL, 0ULL);
 }
 
 u64 cleonos_sys_net_available(void) {

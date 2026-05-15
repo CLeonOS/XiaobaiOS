@@ -20,3 +20,15 @@
 [submodule "third_party/cJSON"]
 	path = third_party/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
+[submodule "third_party/sqlite"]
+	path = third_party/sqlite
+	url = https://github.com/sqlite/sqlite.git
+[submodule "third_party/lua"]
+	path = third_party/lua
+	url = https://github.com/CLeonOS/lua
+[submodule "third_party/zlib"]
+	path = third_party/zlib
+	url = https://github.com/CLeonOS/zlib
+[submodule "third_party/libpng"]
+	path = third_party/libpng
+	url = https://github.com/CLeonOS/libpng.git

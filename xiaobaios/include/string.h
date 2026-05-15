@@ -25,5 +25,6 @@ char *strtok_r(char *text, const char *delim, char **saveptr);
 char *strtok(char *text, const char *delim);
 char *strcat(char *dst, const char *src);
 char *strncat(char *dst, const char *src, size_t size);
+int strcoll(const char *left, const char *right);
 
 #endif

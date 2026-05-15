@@ -22,6 +22,8 @@ long long llabs(long long value);
 int atoi(const char *text);
 long atol(const char *text);
 long long atoll(const char *text);
+double atof(const char *text);
+double strtod(const char *text, char **out_end);
 long strtol(const char *text, char **out_end, int base);
 unsigned long strtoul(const char *text, char **out_end, int base);
 long long strtoll(const char *text, char **out_end, int base);

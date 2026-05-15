@@ -1,5 +1,5 @@
-#ifndef CLEONOS_LIBC_ERRNO_H
-#define CLEONOS_LIBC_ERRNO_H
+#ifndef CLEONOS_LUA_ERRNO_H
+#define CLEONOS_LUA_ERRNO_H
 
 #define EPERM 1
 #define ENOENT 2
